@@ -1,0 +1,34 @@
+node_modules
+dist
+.wrangler
+.wrangler.deepspace.*.toml
+.dev.vars
+.dev.vars.*
+.deepspace
+.worker-bundle.js
+*.tgz
+test-results/
+playwright-report/
+src/router.ts
+src/modals.tsx
+.claude/launch.json
+.claude/worktrees
+
+# Local configuration and credentials (keep secret-free examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.dev.vars.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Build output, caches, and local logs
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+*.log
+.DS_Store
