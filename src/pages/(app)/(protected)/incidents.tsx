@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthProfileReady, useMutations, useQuery, type RecordData } from 'deepspace'
-import { ArrowLeft, ClipboardList, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
 import { Badge, Button, Input, Textarea } from '@/components/ui'
 
 type Incident = {
@@ -9,6 +9,44 @@ type Incident = {
   rawLog: string
   status: 'Pending analysis'
 }
+
+const EXAMPLE_INCIDENTS = [
+  {
+    title: 'Checkout API failures',
+    rawLog: `2026-09-10T10:01:12Z POST /api/checkout 500 Internal Server Error
+2026-09-10T10:01:13Z payment provider request timed out
+2026-09-10T10:01:15Z checkout request failed after 3 retries
+2026-09-10T10:01:20Z error rate increased to 18 percent`,
+  },
+  {
+    title: 'Authentication requests timing out',
+    rawLog: `2026-09-10T11:14:02Z POST /api/auth/login 504 Gateway Timeout
+2026-09-10T11:14:03Z identity provider request exceeded 5s timeout
+2026-09-10T11:14:08Z login attempt failed after upstream timeout
+2026-09-10T11:14:30Z authentication error rate increased to 11 percent`,
+  },
+  {
+    title: 'Database connection pool exhausted',
+    rawLog: `2026-09-10T12:22:41Z GET /api/orders 503 Service Unavailable
+2026-09-10T12:22:41Z database connection pool reached maximum size
+2026-09-10T12:22:45Z request queued for 10s waiting for a connection
+2026-09-10T12:23:01Z order API recovered after pool pressure dropped`,
+  },
+  {
+    title: 'Background job retry storm',
+    rawLog: `2026-09-10T13:05:10Z job invoice-sync attempt 1 failed: upstream 502
+2026-09-10T13:05:20Z job invoice-sync scheduled for retry in 10s
+2026-09-10T13:05:30Z job invoice-sync attempt 2 failed: upstream 502
+2026-09-10T13:05:31Z retry queue depth increased to 240 jobs`,
+  },
+  {
+    title: 'Search index lagging behind writes',
+    rawLog: `2026-09-10T14:40:00Z POST /api/catalog/items 201 Created
+2026-09-10T14:40:02Z search index update queued for item item_4821
+2026-09-10T14:41:45Z search index freshness exceeded 90 seconds
+2026-09-10T14:42:10Z item visible in search after delayed indexing`,
+  },
+]
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {
@@ -30,6 +68,7 @@ export default function IncidentsPage() {
   const [rawLog, setRawLog] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const lastExampleIndex = useRef<number | null>(null)
 
   const selected = useMemo(
     () => records.find((record) => record.recordId === selectedId) ?? null,
@@ -60,6 +99,18 @@ export default function IncidentsPage() {
     }
   }
 
+  function handleLoadExample() {
+    let nextIndex = Math.floor(Math.random() * EXAMPLE_INCIDENTS.length)
+    while (EXAMPLE_INCIDENTS.length > 1 && nextIndex === lastExampleIndex.current) {
+      nextIndex = Math.floor(Math.random() * EXAMPLE_INCIDENTS.length)
+    }
+    lastExampleIndex.current = nextIndex
+    const example = EXAMPLE_INCIDENTS[nextIndex]
+    setTitle(example.title)
+    setRawLog(example.rawLog)
+    setFormError(null)
+  }
+
   if (selected) {
     return <IncidentDetail record={selected} onBack={() => setSelectedId(null)} userEmail={user?.email} />
   }
@@ -82,12 +133,18 @@ export default function IncidentsPage() {
       </header>
 
       <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="rounded-lg bg-primary/15 p-2 text-primary"><Plus className="h-5 w-5" /></div>
-          <div>
-            <h2 className="font-medium text-foreground">Create an incident</h2>
-            <p className="text-sm text-muted-foreground">Capture the facts first; analysis comes next.</p>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/15 p-2 text-primary"><Plus className="h-5 w-5" /></div>
+            <div>
+              <h2 className="font-medium text-foreground">Create an incident</h2>
+              <p className="text-sm text-muted-foreground">Capture the facts first; analysis comes next.</p>
+            </div>
           </div>
+          <Button type="button" variant="outline" size="sm" onClick={handleLoadExample}>
+            <FileText className="h-4 w-4" />
+            Load example incident
+          </Button>
         </div>
         <form className="flex flex-col gap-4" onSubmit={handleCreate}>
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
