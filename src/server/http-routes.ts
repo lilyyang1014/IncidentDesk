@@ -21,7 +21,7 @@ import {
   verifyJwt,
 } from 'deepspace/worker'
 import type { JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
-import { integrations } from '../integrations.js'
+import { integrationBilling, INTEGRATION_NOT_ENABLED } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
 function jwtConfig(env: Env): JwtVerifierConfig {
@@ -205,14 +205,16 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
 
   app.all('/api/integrations/:name/:endpoint', async (c) => {
     const integrationName = c.req.param('name')
-    const billingMode = integrations[integrationName]?.billing ?? 'developer'
+    const endpoint = `${integrationName}/${c.req.param('endpoint')}`
+    const billingMode = integrationBilling(endpoint)
+    if (!billingMode) return c.json(INTEGRATION_NOT_ENABLED, 403)
 
     const auth = await resolveAuth(c.req.raw, c.env)
     if (!auth && billingMode === 'user') {
       return c.json({ error: 'Sign in required for this integration' }, 401)
     }
 
-    const target = `/api/integrations/${integrationName}/${c.req.param('endpoint')}`
+    const target = `/api/integrations/${endpoint}`
     const headers: Record<string, string> = {
       'Content-Type': c.req.header('Content-Type') ?? 'application/json',
     }

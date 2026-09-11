@@ -31,7 +31,7 @@ import type { Hono } from 'hono'
 import { apiWorkerFetch, normalizeApiError } from 'deepspace/worker'
 import type { ActionResult, ActionTools, VerifyResult } from 'deepspace/worker'
 import { actions } from '../actions/index.js'
-import { integrations } from '../integrations.js'
+import { integrationBilling, INTEGRATION_NOT_ENABLED } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
 type ResolveAuth = (req: Request, env: Env) => Promise<VerifyResult | null>
@@ -86,8 +86,8 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
   }
 
   async function callIntegration<T>(endpoint: string, data?: unknown): Promise<ActionResult<T>> {
-    const integrationName = endpoint.split('/')[0]
-    const billingMode = integrations[integrationName]?.billing ?? 'developer'
+    const billingMode = integrationBilling(endpoint)
+    if (!billingMode) return { ...INTEGRATION_NOT_ENABLED }
 
     // The api-worker bills the JWT subject: owner for developer mode, caller
     // for user mode. It does not accept a client-supplied billing override.
