@@ -3,12 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthProfileReady, useMutations, useQuery, type RecordData } from 'deepspace'
 import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
 import { Badge, Button, Input, Textarea } from '@/components/ui'
-
-type Incident = {
-  title: string
-  rawLog: string
-  status: 'Pending analysis'
-}
+import { createIncidentSaveFlow, INITIAL_SAVE_STATE, type Incident } from '@/features/incidents/incident-save'
 
 const EXAMPLE_INCIDENTS = [
   {
@@ -62,12 +57,13 @@ export default function IncidentsPage() {
     orderDir: 'desc',
     limit: 50,
   })
-  const { create, ready } = useMutations<Incident>('incidents')
+  const { createConfirmed, ready } = useMutations<Incident>('incidents')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [rawLog, setRawLog] = useState('')
-  const [isCreating, setIsCreating] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState(INITIAL_SAVE_STATE)
+  const [saveFlow] = useState(() => createIncidentSaveFlow(setSaveState))
+  const isCreating = saveState.phase === 'saving'
   const lastExampleIndex = useRef<number | null>(null)
 
   const selected = useMemo(
@@ -77,29 +73,16 @@ export default function IncidentsPage() {
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const trimmedTitle = title.trim()
-    const trimmedLog = rawLog.trim()
-
-    if (!trimmedTitle || !trimmedLog) {
-      setFormError('Enter an incident title and the original logs.')
-      return
-    }
-
-    setFormError(null)
-    setIsCreating(true)
-    try {
-      const recordId = await create({ title: trimmedTitle, rawLog: trimmedLog, status: 'Pending analysis' })
+    const recordId = await saveFlow.submit({ title, rawLog }, createConfirmed)
+    if (recordId) {
       setTitle('')
       setRawLog('')
       setSelectedId(recordId)
-    } catch (writeError) {
-      setFormError(writeError instanceof Error ? writeError.message : 'Could not save the incident. Try again.')
-    } finally {
-      setIsCreating(false)
     }
   }
 
   function handleLoadExample() {
+    if (!saveFlow.canReplaceInput()) return
     let nextIndex = Math.floor(Math.random() * EXAMPLE_INCIDENTS.length)
     while (EXAMPLE_INCIDENTS.length > 1 && nextIndex === lastExampleIndex.current) {
       nextIndex = Math.floor(Math.random() * EXAMPLE_INCIDENTS.length)
@@ -108,11 +91,21 @@ export default function IncidentsPage() {
     const example = EXAMPLE_INCIDENTS[nextIndex]
     setTitle(example.title)
     setRawLog(example.rawLog)
-    setFormError(null)
+    saveFlow.clearError()
   }
 
   if (selected) {
     return <IncidentDetail record={selected} onBack={() => setSelectedId(null)} userEmail={user?.email} />
+  }
+
+  if (selectedId) {
+    return (
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
+        <Button variant="outline" onClick={() => setSelectedId(null)}>Back to incidents</Button>
+        <p role="status">Incident saved. Waiting for the details to sync.</p>
+        {status === 'error' && <ErrorState message={error ?? 'Could not load incident details.'} />}
+      </div>
+    )
   }
 
   return (
@@ -141,25 +134,31 @@ export default function IncidentsPage() {
               <p className="text-sm text-muted-foreground">Capture the facts first; analysis comes next.</p>
             </div>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleLoadExample}>
+          <Button type="button" variant="outline" size="sm" onClick={handleLoadExample} disabled={saveState.phase !== 'idle'}>
             <FileText className="h-4 w-4" />
             Load example incident
           </Button>
         </div>
-        <form className="flex flex-col gap-4" onSubmit={handleCreate}>
+        <form className="flex flex-col gap-4" onSubmit={handleCreate} aria-busy={isCreating}>
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             Incident title
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="For example: Checkout requests failing" maxLength={120} />
+            <Input disabled={isCreating} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="For example: Checkout requests failing" maxLength={120} />
           </label>
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             Original logs
-            <Textarea value={rawLog} onChange={(event) => setRawLog(event.target.value)} placeholder="Paste timestamped log text" rows={7} maxLength={20000} />
+            <Textarea disabled={isCreating} value={rawLog} onChange={(event) => setRawLog(event.target.value)} placeholder="Paste timestamped log text" rows={7} maxLength={20000} />
           </label>
-          {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+          {saveState.error && <p role="alert" className="text-sm text-destructive">{saveState.error}</p>}
+          {saveState.phase === 'review' && (
+            <Button type="button" variant="outline" disabled={!ready || status !== 'ready'} onClick={() => saveFlow.acknowledgeReview()}>
+              I checked Saved incidents — allow retry
+            </Button>
+          )}
+          {isCreating && <p role="status" className="text-sm text-muted-foreground">Saving incident… Keep this page open until confirmation.</p>}
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground">New records start as Pending analysis.</p>
-            <Button type="submit" loading={isCreating} disabled={!ready || isCreating}>
-              Save incident
+            <Button type="submit" loading={isCreating} disabled={!ready || saveState.phase !== 'idle'}>
+              {isCreating ? 'Saving incident…' : 'Save incident'}
             </Button>
           </div>
         </form>
@@ -178,7 +177,7 @@ export default function IncidentsPage() {
         {status === 'ready' && records.length === 0 && <EmptyState />}
         {status === 'ready' && records.length > 0 && (
           <div className="grid gap-3">
-            {records.map((record) => <IncidentCard key={record.recordId} record={record} onOpen={() => setSelectedId(record.recordId)} />)}
+            {records.map((record) => <IncidentCard key={record.recordId} record={record} disabled={isCreating} onOpen={() => setSelectedId(record.recordId)} />)}
           </div>
         )}
       </section>
@@ -186,9 +185,9 @@ export default function IncidentsPage() {
   )
 }
 
-function IncidentCard({ record, onOpen }: { record: RecordData<Incident>; onOpen: () => void }) {
+function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Incident>; onOpen: () => void; disabled: boolean }) {
   return (
-    <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40">
+    <button type="button" onClick={onOpen} disabled={disabled} className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 disabled:opacity-50">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-medium text-foreground">{record.data.title}</h3>
