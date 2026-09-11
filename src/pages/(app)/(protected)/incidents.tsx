@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthProfileReady, useMutations, useQuery, useUserLookup, type RecordData } from 'deepspace'
 import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
 import { Badge, Button, Input, Textarea } from '@/components/ui'
 import { createIncidentSaveFlow, INITIAL_SAVE_STATE, type Incident } from '@/features/incidents/incident-save'
 import { creatorLabel, incidentListCopy } from '@/features/incidents/incident-access'
+import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incident-route'
 
 const EXAMPLE_INCIDENTS = [
   {
@@ -60,7 +61,8 @@ export default function IncidentsPage() {
     limit: 50,
   })
   const { createConfirmed, ready } = useMutations<Incident>('incidents')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = incidentIdFromSearch(searchParams.toString())
   const [title, setTitle] = useState('')
   const [rawLog, setRawLog] = useState('')
   const [saveState, setSaveState] = useState(INITIAL_SAVE_STATE)
@@ -80,7 +82,7 @@ export default function IncidentsPage() {
     if (recordId) {
       setTitle('')
       setRawLog('')
-      setSelectedId(recordId)
+      setSearchParams(incidentSearch(recordId))
     }
   }
 
@@ -101,7 +103,7 @@ export default function IncidentsPage() {
     return (
       <IncidentDetail
         record={selected}
-        onBack={() => setSelectedId(null)}
+        onBack={() => setSearchParams({}, { replace: true })}
         creator={creatorLabel({
           createdBy: selected.createdBy,
           currentUserId: user?.id,
@@ -116,8 +118,12 @@ export default function IncidentsPage() {
   if (selectedId) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
-        <Button variant="outline" onClick={() => setSelectedId(null)}>Back to incidents</Button>
-        <p role="status">Incident saved. Waiting for the details to sync.</p>
+        <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Back to incidents</Button>
+        {status === 'ready' ? (
+          <ErrorState message="This incident could not be found in the records available to your account." />
+        ) : (
+          <p role="status">Loading incident details…</p>
+        )}
         {status === 'error' && <ErrorState message={error ?? 'Could not load incident details.'} />}
       </div>
     )
@@ -192,7 +198,7 @@ export default function IncidentsPage() {
         {status === 'ready' && records.length === 0 && <EmptyState />}
         {status === 'ready' && records.length > 0 && (
           <div className="grid gap-3">
-            {records.map((record) => <IncidentCard key={record.recordId} record={record} disabled={isCreating} onOpen={() => setSelectedId(record.recordId)} />)}
+            {records.map((record) => <IncidentCard key={record.recordId} record={record} disabled={isCreating} onOpen={() => setSearchParams(incidentSearch(record.recordId))} />)}
           </div>
         )}
       </section>
