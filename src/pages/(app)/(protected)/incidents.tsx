@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthProfileReady, useMutations, useQuery, type RecordData } from 'deepspace'
+import { useAuthProfileReady, useMutations, useQuery, useUserLookup, type RecordData } from 'deepspace'
 import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
 import { Badge, Button, Input, Textarea } from '@/components/ui'
 import { createIncidentSaveFlow, INITIAL_SAVE_STATE, type Incident } from '@/features/incidents/incident-save'
+import { creatorLabel, incidentListCopy } from '@/features/incidents/incident-access'
 
 const EXAMPLE_INCIDENTS = [
   {
@@ -52,6 +53,7 @@ function formatDate(value: string) {
 
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
+  const { getEmail, getName } = useUserLookup()
   const { records, status, error } = useQuery<Incident>('incidents', {
     orderBy: 'createdAt',
     orderDir: 'desc',
@@ -65,6 +67,7 @@ export default function IncidentsPage() {
   const [saveFlow] = useState(() => createIncidentSaveFlow(setSaveState))
   const isCreating = saveState.phase === 'saving'
   const lastExampleIndex = useRef<number | null>(null)
+  const listCopy = incidentListCopy(user?.role ?? 'member')
 
   const selected = useMemo(
     () => records.find((record) => record.recordId === selectedId) ?? null,
@@ -95,7 +98,19 @@ export default function IncidentsPage() {
   }
 
   if (selected) {
-    return <IncidentDetail record={selected} onBack={() => setSelectedId(null)} userEmail={user?.email} />
+    return (
+      <IncidentDetail
+        record={selected}
+        onBack={() => setSelectedId(null)}
+        creator={creatorLabel({
+          createdBy: selected.createdBy,
+          currentUserId: user?.id,
+          currentUserEmail: user?.email,
+          role: user?.role ?? 'member',
+          lookup: { getEmail, getName },
+        })}
+      />
+    )
   }
 
   if (selectedId) {
@@ -114,9 +129,9 @@ export default function IncidentsPage() {
         <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">IncidentDesk</p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">My incidents</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">{listCopy.heading}</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Save the incident title and original logs as a verifiable starting point for later analysis and handoff.
+              {listCopy.description} Save the incident title and original logs as a verifiable starting point for later analysis and handoff.
             </p>
           </div>
           <Link to="/home" className="text-sm text-muted-foreground hover:text-foreground">
@@ -168,7 +183,7 @@ export default function IncidentsPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Saved incidents</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Only incidents you created appear here.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{listCopy.description}</p>
           </div>
           <ClipboardList className="h-5 w-5 text-muted-foreground" aria-hidden />
         </div>
@@ -201,7 +216,7 @@ function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Inciden
   )
 }
 
-function IncidentDetail({ record, onBack, userEmail }: { record: RecordData<Incident>; onBack: () => void; userEmail?: string }) {
+function IncidentDetail({ record, onBack, creator }: { record: RecordData<Incident>; onBack: () => void; creator: string }) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
       <button type="button" onClick={onBack} className="flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -216,7 +231,7 @@ function IncidentDetail({ record, onBack, userEmail }: { record: RecordData<Inci
       </header>
       <section className="grid gap-3 rounded-xl border border-border bg-card p-5 text-sm sm:grid-cols-2">
         <div><p className="text-muted-foreground">Created</p><p className="mt-1 text-foreground">{formatDate(record.createdAt)}</p></div>
-        <div><p className="text-muted-foreground">Created by</p><p className="mt-1 break-all text-foreground">{userEmail ?? record.createdBy}</p></div>
+        <div><p className="text-muted-foreground">Created by</p><p className="mt-1 break-all text-foreground">{creator}</p></div>
       </section>
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="font-medium text-foreground">Original logs</h2>
