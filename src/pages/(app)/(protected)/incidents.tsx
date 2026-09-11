@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthProfileReady, useMutations, useQuery, useUserLookup, type RecordData } from 'deepspace'
 import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
@@ -55,7 +55,6 @@ function formatDate(value: string) {
 
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
-  const { getEmail, getName } = useUserLookup()
   const { records, status, error } = useQuery<Incident>('incidents', {
     orderBy: 'createdAt',
     orderDir: 'desc',
@@ -71,11 +70,6 @@ export default function IncidentsPage() {
   const isCreating = saveState.phase === 'saving'
   const lastExampleIndex = useRef<number | null>(null)
   const listCopy = incidentListCopy(user?.role ?? 'member')
-
-  const selected = useMemo(
-    () => records.find((record) => record.recordId === selectedId) ?? null,
-    [records, selectedId],
-  )
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -100,34 +94,13 @@ export default function IncidentsPage() {
     saveFlow.clearError()
   }
 
-  if (selected) {
-    return (
-      <IncidentDetail
-        key={`${user?.id}:${selected.recordId}`}
-        record={selected}
-        onBack={() => setSearchParams({}, { replace: true })}
-        creator={creatorLabel({
-          createdBy: selected.createdBy,
-          currentUserId: user?.id,
-          currentUserEmail: user?.email,
-          role: user?.role ?? 'member',
-          lookup: { getEmail, getName },
-        })}
-      />
-    )
-  }
-
   if (selectedId) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
-        <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Back to incidents</Button>
-        {status === 'ready' ? (
-          <ErrorState message="This incident could not be found in the records available to your account." />
-        ) : (
-          <p role="status">Loading incident details…</p>
-        )}
-        {status === 'error' && <ErrorState message={error ?? 'Could not load incident details.'} />}
-      </div>
+      <IncidentDetailQuery
+        key={`${user?.id}:${selectedId}`}
+        incidentId={selectedId}
+        onBack={() => setSearchParams({}, { replace: true })}
+      />
     )
   }
 
@@ -204,6 +177,39 @@ export default function IncidentsPage() {
           </div>
         )}
       </section>
+    </div>
+  )
+}
+
+/** A separate subscription keeps detail reads independent of list pagination.
+ * RecordRoom applies the same RBAC to this ID filter as to the list query. */
+function IncidentDetailQuery({ incidentId, onBack }: { incidentId: string; onBack: () => void }) {
+  const { user } = useAuthProfileReady({ requireUser: true })
+  const { getEmail, getName } = useUserLookup()
+  const { records, status, error } = useQuery<Incident>('incidents', {
+    where: { recordId: incidentId },
+    limit: 1,
+  })
+  const selected = records.find((record) => record.recordId === incidentId)
+
+  if (status === 'ready' && selected) {
+    return <IncidentDetail record={selected} onBack={onBack} creator={creatorLabel({
+      createdBy: selected.createdBy,
+      currentUserId: user?.id,
+      currentUserEmail: user?.email,
+      role: user?.role ?? 'member',
+      lookup: { getEmail, getName },
+    })} />
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
+      <Button variant="outline" onClick={onBack}>Back to incidents</Button>
+      {status === 'loading' && <p role="status">Loading incident details…</p>}
+      {status === 'error' && <ErrorState message={error ?? 'Could not load incident details.'} />}
+      {status === 'ready' && !selected && (
+        <ErrorState message="This incident could not be found in the records available to your account." />
+      )}
     </div>
   )
 }
