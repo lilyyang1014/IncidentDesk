@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createIncidentAnalysisFlow, withAnalysisLock, type AnalysisLock, type AnalysisState } from './incident-analysis-flow'
-import type { Incident } from './incident-save'
+import type { Incident } from './incident-types'
 
 const incident: Incident = { title: 'Failure', rawLog: 'GET /orders 503', status: 'Pending analysis' }
 const lock: AnalysisLock = async (_id, work) => { await work(); return true }

@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useAuthProfileReady, useMutations, useQuery, useUserLookup, type RecordData } from 'deepspace'
-import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
+import { useAuthProfileReady, useMutations, useQuery, type RecordData } from 'deepspace'
+import { ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
 import { Badge, Button, Input, Textarea } from '@/components/ui'
-import { createIncidentSaveFlow, INITIAL_SAVE_STATE, type Incident } from '@/features/incidents/incident-save'
-import { creatorLabel, incidentListCopy } from '@/features/incidents/incident-access'
-import { IncidentAnalysisControl } from '@/features/incidents/IncidentAnalysisControl'
+import { createIncidentSaveFlow, INITIAL_SAVE_STATE } from '@/features/incidents/incident-save'
+import { incidentListCopy } from '@/features/incidents/incident-access'
+import { IncidentDetails } from '@/features/incidents/IncidentDetails'
+import type { Incident } from '@/features/incidents/incident-types'
+import { formatDate } from '@/features/incidents/incident-format'
 import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incident-route'
 
 const EXAMPLE_INCIDENTS = [
@@ -45,13 +47,6 @@ const EXAMPLE_INCIDENTS = [
 2026-09-10T14:42:10Z item visible in search after delayed indexing`,
   },
 ]
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
-}
 
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
@@ -96,7 +91,7 @@ export default function IncidentsPage() {
 
   if (selectedId) {
     return (
-      <IncidentDetailQuery
+      <IncidentDetails
         key={`${user?.id}:${selectedId}`}
         incidentId={selectedId}
         onBack={() => setSearchParams({}, { replace: true })}
@@ -181,39 +176,6 @@ export default function IncidentsPage() {
   )
 }
 
-/** A separate subscription keeps detail reads independent of list pagination.
- * RecordRoom applies the same RBAC to this ID filter as to the list query. */
-function IncidentDetailQuery({ incidentId, onBack }: { incidentId: string; onBack: () => void }) {
-  const { user } = useAuthProfileReady({ requireUser: true })
-  const { getEmail, getName } = useUserLookup()
-  const { records, status, error } = useQuery<Incident>('incidents', {
-    where: { recordId: incidentId },
-    limit: 1,
-  })
-  const selected = records.find((record) => record.recordId === incidentId)
-
-  if (status === 'ready' && selected) {
-    return <IncidentDetail record={selected} onBack={onBack} creator={creatorLabel({
-      createdBy: selected.createdBy,
-      currentUserId: user?.id,
-      currentUserEmail: user?.email,
-      role: user?.role ?? 'member',
-      lookup: { getEmail, getName },
-    })} />
-  }
-
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
-      <Button variant="outline" onClick={onBack}>Back to incidents</Button>
-      {status === 'loading' && <p role="status">Loading incident details…</p>}
-      {status === 'error' && <ErrorState message={error ?? 'Could not load incident details.'} />}
-      {status === 'ready' && !selected && (
-        <ErrorState message="This incident could not be found in the records available to your account." />
-      )}
-    </div>
-  )
-}
-
 function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Incident>; onOpen: () => void; disabled: boolean }) {
   return (
     <button type="button" onClick={onOpen} disabled={disabled} className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 disabled:opacity-50">
@@ -227,56 +189,6 @@ function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Inciden
       <p className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{record.data.rawLog}</p>
       <span className="text-sm font-medium text-primary">Open details →</span>
     </button>
-  )
-}
-
-function IncidentDetail({
-  record,
-  onBack,
-  creator,
-}: {
-  record: RecordData<Incident>
-  onBack: () => void
-  creator: string
-}) {
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
-      <button type="button" onClick={onBack} className="flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to incidents
-      </button>
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.16em] text-primary">Incident details</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{record.data.title}</h1>
-        </div>
-        <Badge variant="warning" size="lg">{record.data.status}</Badge>
-      </header>
-      <IncidentAnalysisControl record={record} />
-      {record.data.status === 'Analysis ready' && (
-        <section className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
-          <div>
-            <h2 className="font-medium text-foreground">Analysis summary</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{record.data.analysisSummary}</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-foreground">Detected signals</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{record.data.analysisSignals || 'None'}</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-foreground">Evidence lines</h3>
-            <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-background p-4 font-mono text-sm leading-6 text-foreground">{record.data.analysisEvidence || 'None'}</pre>
-          </div>
-        </section>
-      )}
-      <section className="grid gap-3 rounded-xl border border-border bg-card p-5 text-sm sm:grid-cols-2">
-        <div><p className="text-muted-foreground">Created</p><p className="mt-1 text-foreground">{formatDate(record.createdAt)}</p></div>
-        <div><p className="text-muted-foreground">Created by</p><p className="mt-1 break-all text-foreground">{creator}</p></div>
-      </section>
-      <section className="rounded-xl border border-border bg-card p-5">
-        <h2 className="font-medium text-foreground">Original logs</h2>
-        <pre className="mt-4 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-lg bg-background p-4 font-mono text-sm leading-6 text-foreground">{record.data.rawLog}</pre>
-      </section>
-    </div>
   )
 }
 

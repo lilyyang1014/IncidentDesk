@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutations, type RecordData } from 'deepspace'
 import { Button } from '@/components/ui'
-import type { Incident } from './incident-save'
+import type { Incident } from './incident-types'
 import { createIncidentAnalysisFlow, INITIAL_ANALYSIS_STATE } from './incident-analysis-flow'
 
 /** Mount with a record/account key so navigation never transfers operation state. */

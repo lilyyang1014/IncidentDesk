@@ -1,5 +1,5 @@
 import { analyzeIncidentLogs } from './incident-analysis'
-import type { Incident } from './incident-save'
+import type { Incident } from './incident-types'
 
 export type AnalysisState = {
   phase: 'idle' | 'saving' | 'review' | 'complete'

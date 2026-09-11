@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import type { RecordData } from 'deepspace'
-import type { Incident } from './incident-save'
+import type { Incident } from './incident-types'
 import IncidentsPage from '@/pages/(app)/(protected)/incidents'
 
 const hooks = vi.hoisted(() => ({ query: vi.fn() }))
