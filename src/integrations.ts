@@ -45,3 +45,6 @@ export function integrationBilling(endpoint: string): 'developer' | 'user' | nul
   const billing = integrations[name]?.billing
   return billing === 'developer' || billing === 'user' ? billing : null
 }
+
+// Private incident action only; caller JWT determines the billing account.
+export const referenceIntegration = { endpoint: 'exa/search', billing: 'user' } as const

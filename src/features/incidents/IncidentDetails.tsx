@@ -5,6 +5,7 @@ import { creatorLabel } from './incident-access'
 import { IncidentDetailView } from './IncidentDetailView'
 import { IncidentAnalysisControl } from './IncidentAnalysisControl'
 import { IncidentAnalysisResult } from './IncidentAnalysisResult'
+import { IncidentReferences } from './IncidentReferences'
 import { IncidentAiAnalysis } from './IncidentAiAnalysis'
 
 /** A separate subscription keeps detail reads independent of list pagination.
@@ -35,6 +36,7 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
             <IncidentAnalysisControl record={selected} />
             <IncidentAnalysisResult incident={selected.data} />
             <IncidentAiAnalysis key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
+            <IncidentReferences key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
           </>
         }
       />
