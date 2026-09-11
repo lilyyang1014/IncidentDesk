@@ -5,6 +5,7 @@ import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw } from 'lucide-reac
 import { Badge, Button, Input, Textarea } from '@/components/ui'
 import { createIncidentSaveFlow, INITIAL_SAVE_STATE, type Incident } from '@/features/incidents/incident-save'
 import { creatorLabel, incidentListCopy } from '@/features/incidents/incident-access'
+import { IncidentAnalysisControl } from '@/features/incidents/IncidentAnalysisControl'
 import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incident-route'
 
 const EXAMPLE_INCIDENTS = [
@@ -102,6 +103,7 @@ export default function IncidentsPage() {
   if (selected) {
     return (
       <IncidentDetail
+        key={`${user?.id}:${selected.recordId}`}
         record={selected}
         onBack={() => setSearchParams({}, { replace: true })}
         creator={creatorLabel({
@@ -222,7 +224,15 @@ function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Inciden
   )
 }
 
-function IncidentDetail({ record, onBack, creator }: { record: RecordData<Incident>; onBack: () => void; creator: string }) {
+function IncidentDetail({
+  record,
+  onBack,
+  creator,
+}: {
+  record: RecordData<Incident>
+  onBack: () => void
+  creator: string
+}) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
       <button type="button" onClick={onBack} className="flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -235,6 +245,23 @@ function IncidentDetail({ record, onBack, creator }: { record: RecordData<Incide
         </div>
         <Badge variant="warning" size="lg">{record.data.status}</Badge>
       </header>
+      <IncidentAnalysisControl record={record} />
+      {record.data.status === 'Analysis ready' && (
+        <section className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
+          <div>
+            <h2 className="font-medium text-foreground">Analysis summary</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{record.data.analysisSummary}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Detected signals</h3>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{record.data.analysisSignals || 'None'}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Evidence lines</h3>
+            <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-background p-4 font-mono text-sm leading-6 text-foreground">{record.data.analysisEvidence || 'None'}</pre>
+          </div>
+        </section>
+      )}
       <section className="grid gap-3 rounded-xl border border-border bg-card p-5 text-sm sm:grid-cols-2">
         <div><p className="text-muted-foreground">Created</p><p className="mt-1 text-foreground">{formatDate(record.createdAt)}</p></div>
         <div><p className="text-muted-foreground">Created by</p><p className="mt-1 break-all text-foreground">{creator}</p></div>
