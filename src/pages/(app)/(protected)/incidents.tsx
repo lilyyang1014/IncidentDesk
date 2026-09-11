@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useAuthProfileReady, useMutations, useQuery, type RecordData } from 'deepspace'
-import { ClipboardList, FileText, Plus, RefreshCw } from 'lucide-react'
-import { Badge, Button, Input, Textarea } from '@/components/ui'
+import { useAuthProfileReady, useMutations } from 'deepspace'
+import { FileText, Plus } from 'lucide-react'
+import { Button, Input, Textarea } from '@/components/ui'
 import { createIncidentSaveFlow, INITIAL_SAVE_STATE } from '@/features/incidents/incident-save'
 import { incidentListCopy } from '@/features/incidents/incident-access'
 import { IncidentDetails } from '@/features/incidents/IncidentDetails'
 import type { Incident } from '@/features/incidents/incident-types'
-import { formatDate } from '@/features/incidents/incident-format'
+import { IncidentList, useIncidentList } from '@/features/incidents/IncidentList'
 import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incident-route'
 
 const EXAMPLE_INCIDENTS = [
@@ -50,11 +50,7 @@ const EXAMPLE_INCIDENTS = [
 
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
-  const { records, status, error } = useQuery<Incident>('incidents', {
-    orderBy: 'createdAt',
-    orderDir: 'desc',
-    limit: 50,
-  })
+  const list = useIncidentList()
   const { createConfirmed, ready } = useMutations<Incident>('incidents')
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = incidentIdFromSearch(searchParams.toString())
@@ -141,7 +137,7 @@ export default function IncidentsPage() {
           </label>
           {saveState.error && <p role="alert" className="text-sm text-destructive">{saveState.error}</p>}
           {saveState.phase === 'review' && (
-            <Button type="button" variant="outline" disabled={!ready || status !== 'ready'} onClick={() => saveFlow.acknowledgeReview()}>
+            <Button type="button" variant="outline" disabled={!ready || list.status !== 'ready'} onClick={() => saveFlow.acknowledgeReview()}>
               I checked Saved incidents — allow retry
             </Button>
           )}
@@ -155,51 +151,12 @@ export default function IncidentsPage() {
         </form>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Saved incidents</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{listCopy.description}</p>
-          </div>
-          <ClipboardList className="h-5 w-5 text-muted-foreground" aria-hidden />
-        </div>
-        {status === 'loading' && <LoadingState />}
-        {status === 'error' && <ErrorState message={error ?? 'Could not load incidents.'} />}
-        {status === 'ready' && records.length === 0 && <EmptyState />}
-        {status === 'ready' && records.length > 0 && (
-          <div className="grid gap-3">
-            {records.map((record) => <IncidentCard key={record.recordId} record={record} disabled={isCreating} onOpen={() => setSearchParams(incidentSearch(record.recordId))} />)}
-          </div>
-        )}
-      </section>
+      <IncidentList
+        result={list}
+        description={listCopy.description}
+        disabled={isCreating}
+        onOpen={(recordId) => setSearchParams(incidentSearch(recordId))}
+      />
     </div>
   )
-}
-
-function IncidentCard({ record, onOpen, disabled }: { record: RecordData<Incident>; onOpen: () => void; disabled: boolean }) {
-  return (
-    <button type="button" onClick={onOpen} disabled={disabled} className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 disabled:opacity-50">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-medium text-foreground">{record.data.title}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Created {formatDate(record.createdAt)}</p>
-        </div>
-        <Badge variant="warning">{record.data.status}</Badge>
-      </div>
-      <p className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{record.data.rawLog}</p>
-      <span className="text-sm font-medium text-primary">Open details →</span>
-    </button>
-  )
-}
-
-function LoadingState() {
-  return <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground"><RefreshCw className="h-4 w-4 animate-spin" />Loading incidents…</div>
-}
-
-function ErrorState({ message }: { message: string }) {
-  return <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">{message}</div>
-}
-
-function EmptyState() {
-  return <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center text-sm text-muted-foreground">No incidents yet. Create your first one above.</div>
 }
