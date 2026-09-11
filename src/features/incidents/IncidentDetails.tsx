@@ -5,6 +5,7 @@ import { creatorLabel } from './incident-access'
 import { IncidentDetailView } from './IncidentDetailView'
 import { IncidentAnalysisControl } from './IncidentAnalysisControl'
 import { IncidentAnalysisResult } from './IncidentAnalysisResult'
+import { IncidentAiAnalysis } from './IncidentAiAnalysis'
 
 /** A separate subscription keeps detail reads independent of list pagination.
  * RecordRoom applies the same RBAC to this ID filter as to the list query. */
@@ -33,6 +34,7 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
           <>
             <IncidentAnalysisControl record={selected} />
             <IncidentAnalysisResult incident={selected.data} />
+            <IncidentAiAnalysis key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
           </>
         }
       />

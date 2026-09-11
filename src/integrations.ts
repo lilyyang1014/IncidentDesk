@@ -20,6 +20,15 @@ export const integrations: Record<string, { billing: 'developer' | 'user' }> = {
   // openai: { billing: 'developer' },
 }
 
+// Private business endpoint only. Keep OpenAI out of the generic browser
+// proxy so callers cannot bypass incident authorization and durable quotas.
+export const incidentAiIntegration = {
+  endpoint: 'openai/chat-completion',
+  billing: 'user',
+  model: 'gpt-5.6-terra',
+  maxOutputTokens: 2200,
+} as const
+
 export const INTEGRATION_NOT_ENABLED = {
   success: false as const,
   error: 'This integration is not enabled for this app.',

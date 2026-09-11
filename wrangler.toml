@@ -34,6 +34,10 @@ APP_NAME = "incidentdesk"
 tag = "v1"
 new_sqlite_classes = ["AppRecordRoom", "AppYjsRoom", "AppCanvasRoom", "AppPresenceRoom", "AppCronRoom", "AppJobRoom"]
 
+[[migrations]]
+tag = "v2-incident-ai"
+new_sqlite_classes = ["AppIncidentAiRoom"]
+
 [durable_objects]
 bindings = [
   { name = "RECORD_ROOMS", class_name = "AppRecordRoom" },
@@ -42,6 +46,7 @@ bindings = [
   { name = "PRESENCE_ROOMS", class_name = "AppPresenceRoom" },
   { name = "CRON_ROOMS", class_name = "AppCronRoom" },
   { name = "JOB_ROOMS", class_name = "AppJobRoom" },
+  { name = "INCIDENT_AI_ROOMS", class_name = "AppIncidentAiRoom" },
 ]
 
 # For per-app resources (D1, KV, Vectorize, R2, Queues, AI Search), set the id

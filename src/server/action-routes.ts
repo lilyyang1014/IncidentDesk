@@ -53,7 +53,7 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
     // The name is a decoded path segment, so it is quoted, never interpolated raw.
     console.info(`[action] ${JSON.stringify(c.req.param('name'))} caller=${auth.userId}`)
     const name = c.req.param('name')
-    const action = actions[name]
+    const action = Object.hasOwn(actions, name) ? actions[name] : undefined
     if (!action) return c.json({ error: 'Action not found' }, 404)
     const params = await c.req.json<Record<string, unknown>>()
     const tools = createActionTools(c.env, auth.userId, callerJwt)
@@ -62,7 +62,7 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
   })
 }
 
-function createActionTools(env: Env, userId: string, callerJwt: string): ActionTools {
+export function createActionTools(env: Env, userId: string, callerJwt: string): ActionTools {
   const stub = env.RECORD_ROOMS.get(env.RECORD_ROOMS.idFromName(`app:${env.DEEPSPACE_APP_ID}`))
 
   // The DO returns ActionResult<unknown>; callers below supply the precise
