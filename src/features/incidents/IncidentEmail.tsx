@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { Button, Modal } from '@/components/ui'
 import { requestEmail, type EmailInput } from './incident-email-client'
+import { emailFormReducer, initialEmailForm } from './incident-email-form'
 import { recipientSchema, subjectSchema, type EmailState } from './incident-email-types'
 
 export function IncidentEmail({ incidentId, title }: { incidentId: string; title: string }) {
-  const [to, setTo] = useState('')
-  const [subject, setSubject] = useState(`Incident handoff: ${title}`.slice(0, 160))
-  const [includeLogs, setIncludeLogs] = useState(false)
+  const [{ to, subject, includeLogs }, updateForm] = useReducer(emailFormReducer, title, initialEmailForm)
   const [state, setState] = useState<EmailState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +18,10 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
     const current = ++version.current
     const controller = new AbortController()
     requestEmail(incidentId, { intent: 'status' }, controller.signal).then((next) => {
-      if (!controller.signal.aborted && current === version.current) setState(next)
+      if (!controller.signal.aborted && current === version.current) {
+        setState(next)
+        updateForm({ type: 'restore', draft: next.draft })
+      }
     }).catch(() => {
       if (!controller.signal.aborted && current === version.current) setError('Could not load saved email state. Check email status.')
     })
@@ -34,7 +36,13 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
     setReview(false)
     try {
       const next = await requestEmail(incidentId, input)
-      if (mounted.current) setState(next)
+      if (mounted.current) {
+        setState(next)
+        if (input.intent === 'prepare' && next.draft && next.draft.to === input.to
+          && next.draft.subject === input.subject && next.draft.includeLogs === input.includeLogs) {
+          updateForm({ type: 'prepared', draft: next.draft })
+        } else updateForm({ type: 'restore', draft: next.draft })
+      }
     } catch (err) {
       if (mounted.current) { setState(null); setError(err instanceof Error ? err.message : 'Outcome unknown. Check email status.') }
     } finally { gate.current = false; if (mounted.current) setBusy(false) }
@@ -44,9 +52,9 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
   return <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5" aria-label="Email handoff">
     <h2 className="font-medium">Email handoff</h2>
     <p className="text-sm text-muted-foreground">Prepare a saved email, review its exact content, then confirm sending from your connected Gmail account.</p>
-    <label className="flex flex-col gap-1 text-sm">Recipient<input type="email" value={to} maxLength={254} disabled={busy || locked} onChange={(event) => setTo(event.target.value)} className="rounded-md border border-border bg-background p-2" /></label>
-    <label className="flex flex-col gap-1 text-sm">Subject<input value={subject} maxLength={160} disabled={busy || locked} onChange={(event) => setSubject(event.target.value)} className="rounded-md border border-border bg-background p-2" /></label>
-    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeLogs} disabled={busy || locked} onChange={(event) => setIncludeLogs(event.target.checked)} />Include full original logs</label>
+    <label className="flex flex-col gap-1 text-sm">Recipient<input type="email" value={to} maxLength={254} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { to: event.target.value } })} className="rounded-md border border-border bg-background p-2" /></label>
+    <label className="flex flex-col gap-1 text-sm">Subject<input value={subject} maxLength={160} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { subject: event.target.value } })} className="rounded-md border border-border bg-background p-2" /></label>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeLogs} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { includeLogs: event.target.checked } })} />Include full original logs</label>
     <p className="text-xs text-muted-foreground">AI evidence may include log excerpts even when full logs are excluded. Preparing and reviewing do not send mail. Sending uses DeepSpace credits.</p>
     <div className="flex flex-wrap gap-2">
       <Button disabled={busy || locked || !recipientSchema.safeParse(to).success || !subjectSchema.safeParse(subject).success} onClick={() => void run({ intent: 'prepare', to, subject, includeLogs })}>Prepare email draft</Button>
