@@ -42,6 +42,10 @@ new_sqlite_classes = ["AppIncidentAiRoom"]
 tag = "v3-incident-references"
 new_sqlite_classes = ["AppIncidentReferenceRoom"]
 
+[[migrations]]
+tag = "v4-incident-email"
+new_sqlite_classes = ["AppIncidentEmailRoom"]
+
 [durable_objects]
 bindings = [
   { name = "RECORD_ROOMS", class_name = "AppRecordRoom" },
@@ -50,6 +54,7 @@ bindings = [
   { name = "PRESENCE_ROOMS", class_name = "AppPresenceRoom" },
   { name = "CRON_ROOMS", class_name = "AppCronRoom" },
   { name = "JOB_ROOMS", class_name = "AppJobRoom" },
+  { name = "INCIDENT_EMAIL_ROOMS", class_name = "AppIncidentEmailRoom" },
   { name = "INCIDENT_REFERENCE_ROOMS", class_name = "AppIncidentReferenceRoom" },
   { name = "INCIDENT_AI_ROOMS", class_name = "AppIncidentAiRoom" },
 ]

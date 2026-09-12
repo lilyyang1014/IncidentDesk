@@ -39,6 +39,8 @@ export const INTEGRATION_NOT_ENABLED = {
  * path separators, escapes and dot segments before constructing a proxy URL.
  * Own-property lookup excludes inherited names such as constructor. */
 export function integrationBilling(endpoint: string): 'developer' | 'user' | null {
+  // Gmail sending is allowed only through the confirmed incident email action.
+  if (endpoint === 'google/gmail-send') return null
   if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(endpoint)) return null
   const name = endpoint.split('/')[0]
   if (!Object.hasOwn(integrations, name)) return null

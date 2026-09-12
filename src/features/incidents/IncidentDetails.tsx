@@ -6,6 +6,8 @@ import { IncidentDetailView } from './IncidentDetailView'
 import { IncidentAnalysisControl } from './IncidentAnalysisControl'
 import { IncidentAnalysisResult } from './IncidentAnalysisResult'
 import { IncidentReferences } from './IncidentReferences'
+import { IncidentEmail } from './IncidentEmail'
+import { GmailConnectionStatus } from './GmailConnectionStatus'
 import { IncidentHandoffPreview } from './IncidentHandoffPreview'
 import { IncidentAiAnalysis } from './IncidentAiAnalysis'
 
@@ -38,7 +40,9 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
             <IncidentAnalysisResult incident={selected.data} />
             <IncidentAiAnalysis key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
             <IncidentReferences key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
+            <GmailConnectionStatus key={`gmail:${user?.id}`} />
             <IncidentHandoffPreview key={`handoff:${user?.id}:${selected.recordId}:${JSON.stringify(selected.data)}`} record={selected} />
+            <IncidentEmail key={`email:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} title={selected.data.title} />
           </>
         }
       />

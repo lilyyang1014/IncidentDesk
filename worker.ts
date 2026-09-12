@@ -33,6 +33,7 @@ import {
   resolveAuth,
 } from './src/server/http-routes.js'
 import { registerRealtimeRoutes } from './src/server/realtime-routes.js'
+import { IncidentEmailRoom } from './src/server/incident-email-room.js'
 import { IncidentReferenceRoom } from './src/server/incident-reference-room.js'
 import { IncidentAiRoom } from './src/server/incident-ai-room.js'
 
@@ -44,11 +45,14 @@ export const __DO_MANIFEST__ = [
   { binding: 'PRESENCE_ROOMS', className: 'AppPresenceRoom', sqlite: true },
   { binding: 'CRON_ROOMS', className: 'AppCronRoom', sqlite: true },
   { binding: 'JOB_ROOMS', className: 'AppJobRoom', sqlite: true },
+  { binding: 'INCIDENT_EMAIL_ROOMS', className: 'AppIncidentEmailRoom', sqlite: true },
   { binding: 'INCIDENT_REFERENCE_ROOMS', className: 'AppIncidentReferenceRoom', sqlite: true },
   { binding: 'INCIDENT_AI_ROOMS', className: 'AppIncidentAiRoom', sqlite: true },
 ] as const satisfies DOManifest
 
 /** Private analysis receipts and results; no public WebSocket route. */
+export class AppIncidentEmailRoom extends IncidentEmailRoom {}
+
 export class AppIncidentReferenceRoom extends IncidentReferenceRoom {}
 
 export class AppIncidentAiRoom extends IncidentAiRoom {}

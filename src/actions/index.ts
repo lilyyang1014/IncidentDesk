@@ -4,4 +4,6 @@ import { analyzeIncident } from './analyze-incident'
 
 import { findIncidentReferences } from './find-incident-references'
 
-export const actions: Record<string, ActionHandler<Env>> = { analyzeIncident, findIncidentReferences }
+import { incidentEmail } from './incident-email'
+
+export const actions: Record<string, ActionHandler<Env>> = { analyzeIncident, findIncidentReferences, incidentEmail }
