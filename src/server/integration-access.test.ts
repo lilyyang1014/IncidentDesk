@@ -67,7 +67,7 @@ afterEach(() => {
 })
 
 describe('browser integration allowlist', () => {
-  it.each(['openai', 'unknown-provider', 'constructor', '__proto__', 'toString'])('rejects unconfigured %s before forwarding or resolving identity', async (name) => {
+  it.each(['google', 'openai', 'unknown-provider', 'constructor', '__proto__', 'toString'])('rejects unconfigured %s before forwarding or resolving identity', async (name) => {
     const res = await browserApp().request(`/api/integrations/${name}/probe`, {
       method: 'POST', headers: { Authorization: 'Bearer fake-user-token' }, body: '{}',
     }, env)
@@ -90,24 +90,27 @@ describe('browser integration allowlist', () => {
   })
 
   it('still requires authentication for configured user billing', async () => {
-    const res = await browserApp().request('/api/integrations/google/probe', {}, env)
+    integrations.test_provider = { billing: 'user' }
+    const res = await browserApp().request('/api/integrations/test_provider/probe', {}, env)
     expect(res.status).toBe(401)
     expect(mocks.api).not.toHaveBeenCalled()
   })
 
   it('forwards a configured user request with the verified caller token and original body', async () => {
-    const res = await browserApp().request('/api/integrations/google/probe', {
+    integrations.test_provider = { billing: 'user' }
+    const res = await browserApp().request('/api/integrations/test_provider/probe', {
       method: 'POST', headers: { Authorization: 'Bearer fake-user-token' }, body: '{"query":"test"}',
     }, env)
     expect(res.status).toBe(200)
-    expect(mocks.api).toHaveBeenCalledWith(env, '/api/integrations/google/probe', expect.objectContaining({
+    expect(mocks.api).toHaveBeenCalledWith(env, '/api/integrations/test_provider/probe', expect.objectContaining({
       body: '{"query":"test"}', headers: expect.objectContaining({ Authorization: 'Bearer fake-user-token' }),
     }))
   })
 
   it('rejects an invalid bearer even for configured user billing', async () => {
+    integrations.test_provider = { billing: 'user' }
     mocks.verify.mockResolvedValue({ result: null })
-    const res = await browserApp().request('/api/integrations/google/probe', {
+    const res = await browserApp().request('/api/integrations/test_provider/probe', {
       headers: { Authorization: 'Bearer invalid' },
     }, env)
     expect(res.status).toBe(401)
@@ -131,16 +134,17 @@ describe('browser integration allowlist', () => {
 })
 
 describe('server action integration allowlist', () => {
-  it.each(['openai/probe', 'constructor/probe', '__proto__/probe', 'google/../openai/probe', 'google/%2e%2e', 'google/probe?redirect=openai', '/google/probe'])('refuses %s without forwarding', async (endpoint) => {
+  it.each(['google/probe', 'google/gmail-send', 'openai/probe', 'constructor/probe', '__proto__/probe', 'google/../openai/probe', 'google/%2e%2e', 'google/probe?redirect=openai', '/google/probe'])('refuses %s without forwarding', async (endpoint) => {
     const res = await actionRequest(endpoint)
     expect(await res.json()).toEqual(INTEGRATION_NOT_ENABLED)
     expect(mocks.api).not.toHaveBeenCalled()
   })
 
   it('preserves user billing for configured services', async () => {
-    const res = await actionRequest('google/probe')
+    integrations.test_provider = { billing: 'user' }
+    const res = await actionRequest('test_provider/probe')
     expect(await res.json()).toEqual({ success: true, data: { ok: true } })
-    expect(mocks.api).toHaveBeenCalledWith(env, '/api/integrations/google/probe', expect.objectContaining({
+    expect(mocks.api).toHaveBeenCalledWith(env, '/api/integrations/test_provider/probe', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer fake-user-token' }),
     }))
   })
@@ -151,5 +155,31 @@ describe('server action integration allowlist', () => {
     expect(mocks.api).toHaveBeenCalledWith(env, '/api/integrations/test_provider/probe', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer fake-owner-token' }),
     }))
+  })
+})
+
+describe('Gmail connection status remains independent of generic integration access', () => {
+  it('forwards only the authenticated caller token for status reads', async () => {
+    const status = { google: { connected: true, gmailSend: true, email: 'sender@example.test' } }
+    mocks.api.mockResolvedValueOnce(Response.json(status))
+    const response = await browserApp().request('/api/integrations/status', {
+      headers: { Authorization: 'Bearer fake-user-token' },
+    }, env)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(status)
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(env, '/api/integrations/status', {
+      headers: { Authorization: 'Bearer fake-user-token' },
+    })
+  })
+  it('rejects anonymous status reads without forwarding', async () => {
+    expect((await browserApp().request('/api/integrations/status', {}, env)).status).toBe(401)
+    expect(mocks.api).not.toHaveBeenCalled()
+  })
+  it.each(['GET', 'POST', 'DELETE'])('blocks the generic Google path for %s', async (method) => {
+    const response = await browserApp().request('/api/integrations/google/gmail-send', {
+      method, headers: { Authorization: 'Bearer fake-user-token' },
+    }, env)
+    expect(response.status).toBe(403)
+    expect(mocks.api).not.toHaveBeenCalled()
   })
 })

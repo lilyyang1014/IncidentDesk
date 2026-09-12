@@ -16,8 +16,8 @@
  */
 
 export const integrations: Record<string, { billing: 'developer' | 'user' }> = {
-  google: { billing: 'user' },
-  // openai: { billing: 'developer' },
+  // Incident integrations use private business actions, not this generic proxy.
+  // Gmail status has its own authenticated read route; sending uses saved drafts.
 }
 
 // Private business endpoint only. Keep OpenAI out of the generic browser
