@@ -58,7 +58,7 @@ export class IncidentEmailRoom {
         const draft = emailDraftSchema.parse({ id, to: input.to, subject: input.subject, content, includeLogs: input.includeLogs, createdAt: new Date().toISOString() })
         entry = await this.ctx.storage.transaction(async (tx) => {
           const existing = await tx.get<StoredEmail>(`draft:${id}`)
-          const next = existing ?? { draft, userId: auth.userId, source, incidentId: input.incidentId, attempts: 0 }
+          const next = existing ?? { draft, userId: auth.userId, source, incidentId: input.incidentId, attempts: 0, oauthAttempts: 0 }
           await tx.put(`draft:${id}`, next)
           await tx.put(pointer, id)
           return next
