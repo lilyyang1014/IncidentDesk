@@ -1,3 +1,5 @@
+import { incidentWriteRequest } from '../features/incidents/incident-write-types'
+import { writeIncident } from './incident-write'
 import { MSG, RecordRoom, verifyJwt, type ActionResult } from 'deepspace/worker'
 import { z } from 'zod'
 import type { Env } from '../../worker'
@@ -29,16 +31,19 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
-    if (new URL(request.url).pathname !== '/incident-collaboration') return super.fetch(request)
+    const path = new URL(request.url).pathname
+    if (path !== '/incident-collaboration' && path !== '/incident-write') return super.fetch(request)
     if (request.method !== 'POST') return fail('Not found.', 404)
     try {
       const header = request.headers.get('Authorization') ?? ''
       const jwt = header.startsWith('Bearer ') ? header.slice(7) : ''
       const { result: auth } = await verifyJwt({ publicKey: this.env.AUTH_JWT_PUBLIC_KEY, issuer: this.env.AUTH_JWT_ISSUER }, jwt)
       if (!auth || auth.userId.startsWith('anon-')) return fail('Sign in required.', 401)
-      const parsed = collaborationRequest.safeParse(await request.json())
-      if (!parsed.success) return fail('Invalid collaboration request.')
-      const input = parsed.data
+      const payload = await request.json()
+      const write = path === '/incident-write' ? incidentWriteRequest.safeParse(payload) : null
+      if (write && !write.success) return fail(write.error.issues[0].message)
+      const parsed = collaborationRequest.safeParse(payload)
+      if (!write && !parsed.success) return fail('Invalid collaboration request.')
       // Initialize the SDK's schema tables before entering the local gate.
       await super.fetch(new Request('https://internal/api/initialize-collaboration'))
       this.sql.exec('CREATE INDEX IF NOT EXISTS incident_member_lookup ON c_incident_members (col_incidentid, col_incidentcreatedat, col_incidentowner, col_userid)')
@@ -48,6 +53,9 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
         const user = z.object({ data: z.object({ role: z.string() }) }).safeParse(account.data?.record)
         if (!account.success || !user.success) return fail('Sign in to this app before collaborating.', 403)
         const role = auth.userId === this.env.OWNER_USER_ID ? 'admin' : user.data.data.role
+        if (write?.success) return writeIncident(write.data, auth.userId, role, this.tool.bind(this))
+        if (!parsed.success) return fail('Invalid collaboration request.')
+        const input = parsed.data
         const found = await this.tool(auth.userId, 'records.get', { collection: 'incidents', recordId: input.incidentId })
         const parsedRecord = incidentSchema.safeParse(found.data?.record)
         if (!found.success || !parsedRecord.success || parsedRecord.data.createdAt !== input.incidentCreatedAt) return fail('This incident is unavailable. Reopen its details.', 403)

@@ -1,3 +1,4 @@
+import { createIncidentConfirmed } from '@/features/incidents/incident-write-client'
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthProfileReady, useMutations } from 'deepspace'
@@ -13,7 +14,7 @@ import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incid
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
   const list = useIncidentList()
-  const { createConfirmed, ready } = useMutations<Incident>('incidents')
+  const { ready } = useMutations<Incident>('incidents')
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = incidentIdFromSearch(searchParams.toString())
   const [title, setTitle] = useState('')
@@ -26,7 +27,7 @@ export default function IncidentsPage() {
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const recordId = await saveFlow.submit({ title, rawLog }, createConfirmed)
+    const recordId = await saveFlow.submit({ title, rawLog }, createIncidentConfirmed)
     if (recordId) {
       setTitle('')
       setRawLog('')

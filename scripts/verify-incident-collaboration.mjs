@@ -64,11 +64,49 @@ async function socket(user) {
 try {
   await setupStub()
   for (const user of ['a','b','c']) assert.equal((await tool('owner', 'users.register', { userId: user, name: `Test ${user}`, email: `${user}@example.test`, isAdmin: false }, true)).success, true)
-  const created = await tool('a', 'records.create', { collection: 'incidents', recordId: 'incident', data: { title: 'Collaboration verification', rawLog: 'request timed out', status: 'Pending analysis' } })
+  // Authoritative source validation: real actions, generic tools and sockets.
+  for (const data of [
+    {title:'x'.repeat(121),rawLog:'valid'}, {title:'valid',rawLog:'x'.repeat(20001)},
+    {title:' \t\n',rawLog:'valid'}, {title:'valid',rawLog:'\u00a0\u2003\n'},
+    {title:'😀'.repeat(61),rawLog:'valid'}, {title:null,rawLog:'valid'},
+  ]) assert.equal((await action('a','saveIncident',{intent:'create',requestId:randomUUID(),data})).success,false)
+  assert.equal((await read('a','incidents')).data.records.length,0)
+  const createInput={intent:'create',requestId:randomUUID(),data:{title:'😀'.repeat(60),rawLog:'x'.repeat(20000)}}
+  const saved=await action('a','saveIncident',createInput)
+  assert.equal(saved.success,true,JSON.stringify(saved))
+  assert.equal((await action('a','saveIncident',createInput)).data.recordId,saved.data.recordId)
+  assert.equal((await action('a','saveIncident',{...createInput,data:{...createInput.data,title:'different'}})).success,false)
+  const original=(await tool('a','records.get',{collection:'incidents',recordId:saved.data.recordId})).data.record
+  const update={intent:'update',incidentId:original.recordId,incidentCreatedAt:original.createdAt,expectedSource:createInput.data,data:{title:'Updated'}}
+  for(const user of ['a','owner']) {
+    assert.equal((await tool(user,'records.create',{collection:'incidents',recordId:'bypass',data:createInput.data})).success,false)
+    assert.equal((await tool(user,'records.update',{collection:'incidents',recordId:original.recordId,data:{rawLog:'bypass'}})).success,false)
+  }
+  for(const data of [{title:'x'.repeat(121)},{rawLog:'x'.repeat(20001)},{title:'\n'},{rawLog:'\t'},{collaborators:['b']}]) {
+    assert.equal((await action('a','saveIncident',{...update,data})).success,false)
+    assert.deepEqual((await tool('a','records.get',{collection:'incidents',recordId:original.recordId})).data.record,original)
+  }
+  assert.equal((await action('b','saveIncident',update)).success,false)
+  assert.equal((await action('unregistered','saveIncident',createInput)).success,false)
+  const races=await Promise.all(['First','Second'].map(title=>action('a','saveIncident',{...update,data:{title}})))
+  assert.equal(races.filter(r=>r.success).length,1,'Concurrent source edits must not overwrite each other')
+  const changed=(await tool('a','records.get',{collection:'incidents',recordId:original.recordId})).data.record
+  assert.equal(changed.data.rawLog,original.data.rawLog)
+  assert.equal((await action('a','saveIncident',{...update,data:{status:'Analysis ready',analysisSummary:'stale'}})).success,false)
+  assert.equal((await action('a','saveIncident',{...update,expectedSource:{title:changed.data.title,rawLog:changed.data.rawLog},data:{status:'Analysis ready',analysisSummary:'Valid local result'}})).success,true)
+  const preserved=(await tool('a','records.get',{collection:'incidents',recordId:original.recordId})).data.record
+  assert.equal(preserved.data.rawLog,original.data.rawLog)
+  await tool('a','records.delete',{collection:'incidents',recordId:original.recordId})
+  const created = await tool('a', 'records.create', { collection: 'incidents', recordId: 'incident', data: { title: 'Collaboration verification', rawLog: 'request timed out', status: 'Pending analysis' } }, true)
   assert.equal(created.success, true, JSON.stringify(created))
   source = { incidentId: 'incident', incidentCreatedAt: created.data.record.createdAt }
   assert.deepEqual(created.data.record.data.collaborators, [])
   const [a,b,c] = await Promise.all(['a','b','c'].map(socket))
+  const deniedId=randomUUID()
+  a.ws.send(JSON.stringify({type:'core.put',payload:{collection:'incidents',recordId:'incident',data:{rawLog:'forged'},requestId:deniedId}}))
+  assert.equal((await a.wait(m=>m.type==='records.ack' && m.payload.requestId===deniedId)).payload.success,false)
+  assert.equal((await tool('a','records.get',{collection:'incidents',recordId:'incident'})).data.record.data.rawLog,'request timed out')
+
   assert.equal((await b.query('incidents')).length, 0)
   assert.equal((await c.query('incidents')).length, 0)
   assert.equal((await b.query('incident_notes', { incidentId: 'incident' })).length, 0)
@@ -138,7 +176,7 @@ try {
   assert.equal((await tool('a','records.delete',{collection:'incidents',recordId:'incident'})).success,true)
   assert.equal((await read('b','incident_notes')).data.records.length,0)
   assert.equal((await read('a','incident_notes')).data.records.length,0)
-  const recreated=await tool('c','records.create',{collection:'incidents',recordId:'incident',data:{title:'Different incident',rawLog:'other',status:'Pending analysis'}})
+  const recreated=await tool('c','records.create',{collection:'incidents',recordId:'incident',data:{title:'Different incident',rawLog:'other',status:'Pending analysis'}}, true)
   assert.equal(recreated.success,true)
   assert.deepEqual(recreated.data.record.data.collaborators,[])
   assert.equal((await collab('a',{intent:'add',userId:'b'})).success,false)

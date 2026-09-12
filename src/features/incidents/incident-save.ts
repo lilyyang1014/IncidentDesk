@@ -1,3 +1,4 @@
+import { incidentLengthError } from './incident-source-limits'
 import type { Incident } from './incident-types'
 
 export type SaveState = {
@@ -37,6 +38,8 @@ export function createIncidentSaveFlow(onChange: (state: SaveState) => void) {
       createConfirmed: (incident: Incident) => Promise<string>,
     ): Promise<string | undefined> {
       if (state.phase !== 'idle') return
+      const lengthError = incidentLengthError(input.title, input.rawLog)
+      if (lengthError) { update({ phase: 'idle', error: lengthError }); return }
       const title = input.title.trim()
       const rawLog = input.rawLog.trim()
       if (!title || !rawLog) {

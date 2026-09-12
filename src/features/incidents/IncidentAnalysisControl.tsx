@@ -1,3 +1,4 @@
+import { updateIncidentConfirmed } from './incident-write-client'
 import { useState } from 'react'
 import { useMutations, type RecordData } from 'deepspace'
 import { Button } from '@/components/ui'
@@ -6,7 +7,7 @@ import { createIncidentAnalysisFlow, INITIAL_ANALYSIS_STATE } from './incident-a
 
 /** Mount with a record/account key so navigation never transfers operation state. */
 export function IncidentAnalysisControl({ record }: { record: RecordData<Incident> }) {
-  const { putConfirmed, ready } = useMutations<Incident>('incidents')
+  const { ready } = useMutations<Incident>('incidents')
   const [state, setState] = useState(INITIAL_ANALYSIS_STATE)
   const [flow] = useState(() => createIncidentAnalysisFlow(setState))
   if (record.data.status === 'Analysis ready') return null
@@ -19,7 +20,7 @@ export function IncidentAnalysisControl({ record }: { record: RecordData<Inciden
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       {state.phase === 'complete' && <p role="status">Analysis saved. Waiting for the record to sync…</p>}
       <Button type="button" disabled={!ready || state.phase !== 'idle'} loading={state.phase === 'saving'}
-        onClick={() => void flow.submit(record.recordId, record.data, ready, putConfirmed)}>
+        onClick={() => void flow.submit(record.recordId, record.data, ready, (_id, patch) => updateIncidentConfirmed(record, patch))}>
         {state.phase === 'saving' ? 'Saving analysis…' : 'Analyze logs'}
       </Button>
     </div>

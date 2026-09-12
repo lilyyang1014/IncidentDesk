@@ -35,8 +35,8 @@ export const incidentsSchema: CollectionSchema = {
   ],
   collaboratorsField: 'collaborators',
   permissions: {
-    viewer: { read: 'collaborator', create: true, update: 'own', delete: 'own' },
-    member: { read: 'collaborator', create: true, update: 'own', delete: 'own' },
-    admin: { read: true, create: true, update: true, delete: true },
+    viewer: { read: 'collaborator', create: false, update: false, delete: 'own' },
+    member: { read: 'collaborator', create: false, update: false, delete: 'own' },
+    admin: { read: true, create: false, update: false, delete: true },
   },
 }
