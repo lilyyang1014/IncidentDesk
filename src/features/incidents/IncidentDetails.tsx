@@ -1,3 +1,6 @@
+import { incidentCapabilities } from './incident-permissions'
+import { IncidentCollaborators } from './collaboration/IncidentCollaborators'
+import { IncidentNotes } from './collaboration/IncidentNotes'
 import { useAuthProfileReady, useQuery, useUserLookup } from 'deepspace'
 import { Button } from '@/components/ui'
 import type { Incident } from './incident-types'
@@ -23,6 +26,8 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
   const selected = records.find((record) => record.recordId === incidentId)
 
   if (status === 'ready' && selected) {
+    const capability = incidentCapabilities(selected, user?.id ?? '', user?.role ?? 'member')
+    const collaborationKey = `${user?.id}:${selected.recordId}:${selected.createdAt}`
     return (
       <IncidentDetailView
         record={selected}
@@ -36,13 +41,15 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
         })}
         analysis={
           <>
-            <IncidentAnalysisControl record={selected} />
+            {capability.operate && <IncidentAnalysisControl record={selected} />}
             <IncidentAnalysisResult incident={selected.data} />
-            <IncidentAiAnalysis key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
-            <IncidentReferences key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
-            <GmailConnectionStatus key={`gmail:${user?.id}`} />
-            <IncidentHandoffPreview key={`handoff:${user?.id}:${selected.recordId}:${JSON.stringify(selected.data)}`} record={selected} />
-            <IncidentEmail key={`email:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} title={selected.data.title} />
+            <IncidentCollaborators key={`members:${collaborationKey}`} record={selected} canManage={capability.manageMembers} />
+            <IncidentNotes key={`notes:${collaborationKey}`} record={selected} />
+            <IncidentAiAnalysis readOnly={!capability.operate} key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
+            <IncidentReferences readOnly={!capability.operate} key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} />
+            {capability.operate && <GmailConnectionStatus key={`gmail:${user?.id}`} />}
+            {capability.operate && <IncidentHandoffPreview key={`handoff:${user?.id}:${selected.recordId}:${JSON.stringify(selected.data)}`} record={selected} />}
+            {capability.operate && <IncidentEmail key={`email:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} title={selected.data.title} />}
           </>
         }
       />

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui'
 import { requestIncidentAi } from './incident-ai-client'
 import type { AiAnalysisState } from './incident-ai-types'
 
-export function IncidentAiAnalysis({ incidentId }: { incidentId: string }) {
+export function IncidentAiAnalysis({ incidentId, readOnly = false }: { incidentId: string; readOnly?: boolean }) {
   const { ready } = useMutations('incidents')
   const [state, setState] = useState<AiAnalysisState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -57,7 +57,7 @@ export function IncidentAiAnalysis({ incidentId }: { incidentId: string }) {
     {!state && !error && <p role="status" className="text-sm">Loading AI analysis…</p>}
     {state?.phase === 'running' && <p role="status" className="text-sm">AI analysis is in progress. Check status to retrieve its result without starting another request.</p>}
     {state?.result && <AiAnalysisView result={state.result} />}
-    {state?.canGenerate && <>
+    {!readOnly && state?.canGenerate && <>
       <p className="text-xs text-muted-foreground">Uses your DeepSpace credits and sends the saved logs to OpenAI. Remove secrets before saving logs. Up to 10 requests per account per UTC day; no automatic paid retries.</p>
       <Button disabled={!ready || busy} loading={busy} onClick={() => void request('generate')}>
         {busy ? 'Analyzing…' : state.phase === 'failed' ? 'Retry AI analysis' : 'Generate AI analysis'}

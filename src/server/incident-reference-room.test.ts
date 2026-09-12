@@ -11,7 +11,7 @@ vi.mock('deepspace/worker', () => ({
   verifyJwt: mocks.verify, resolveAppMembership: mocks.member, apiWorkerFetch: mocks.api, normalizeApiError: vi.fn(),
 }))
 
-let record: { recordId: string; createdBy: string; createdAt: string; data: { title: string; rawLog: string } }
+let record: { recordId: string; createdBy: string; createdAt: string; data: { title: string; rawLog: string; collaborators?: string[] } }
 let room: IncidentReferenceRoom
 let recordFetch: ReturnType<typeof vi.fn>
 let env: Env
@@ -70,6 +70,30 @@ describe('authenticated reference search boundary', () => {
     for (const [req] of recordFetch.mock.calls) {
       expect(await (req as Request).json()).toMatchObject({ tool: 'records.get', params: { collection: 'incidents' } })
     }
+  })
+  it('shares saved output without granting provider operations or changing its cache identity', async () => {
+    await request()
+    record.data.collaborators = ['user-b']
+    mocks.verify.mockResolvedValue({ result: { userId: 'user-b' } })
+    const shared = await (await request('report')).json()
+    expect(shared).toMatchObject({ success: true, data: { phase: 'complete', canSearch: false } })
+    expect(shared).toMatchObject({ data: { result: expect.any(Object) } })
+    expect((await request()).status).toBe(403)
+    expect(mocks.api).toHaveBeenCalledTimes(1)
+    record.data.collaborators = []
+    expect((await request('report')).status).toBe(403)
+  })
+  it('withholds saved output if collaboration is revoked during the read', async () => {
+    await request()
+    record.data.collaborators = ['user-b']
+    mocks.verify.mockResolvedValue({ result: { userId: 'user-b' } })
+    recordFetch.mockImplementationOnce(async () => Response.json({ success: true, data: { record } }))
+      .mockImplementationOnce(async () => {
+        record.data.collaborators = []
+        return Response.json({ success: true, data: { record } })
+      })
+    expect((await request('report')).status).toBe(409)
+    expect(mocks.api).toHaveBeenCalledTimes(1)
   })
   it('does not call a provider on status reads', async () => {
     expect(await (await request('status')).json()).toEqual({ success: true, data: { query: '', phase: 'idle', canSearch: true } })

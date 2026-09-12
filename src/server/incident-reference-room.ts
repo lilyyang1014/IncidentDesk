@@ -1,3 +1,4 @@
+import { incidentCapabilities } from '../features/incidents/incident-permissions'
 import { resolveAppMembership, verifyJwt } from 'deepspace/worker'
 import { z } from 'zod'
 import type { Env } from '../../worker'
@@ -8,7 +9,7 @@ import { runStoredReferences } from './incident-reference-store'
 
 const incidentRecord = z.object({
   recordId: z.string(), createdBy: z.string().min(1), createdAt: z.string(),
-  data: z.object({ title: z.string().min(1).max(120), rawLog: z.string().min(1).max(20000) }),
+  data: z.object({ collaborators: z.array(z.string()).optional(), title: z.string().min(1).max(120), rawLog: z.string().min(1).max(20000) }),
 })
 
 export class IncidentReferenceRoom {
@@ -33,7 +34,8 @@ export class IncidentReferenceRoom {
       const parsed = incidentRecord.safeParse(found.success ? found.data?.record : null)
       if (!parsed.success || parsed.data.recordId !== input.data.incidentId) return fail('This incident is unavailable or its logs exceed the supported limits.', 404)
       const record = parsed.data
-      if (record.createdBy !== auth.userId && membership.role !== 'admin') return fail('This incident is unavailable to your account.', 403)
+      const capability = incidentCapabilities(record, auth.userId, membership.role)
+      if (!capability.read || (input.data.intent === 'search' && !capability.operate)) return fail('This incident is unavailable to your account.', 403)
       if (!record.data.title.trim() || !record.data.rawLog.trim()) return fail('A title and nonblank original logs are required.')
       const identity = JSON.stringify([record.recordId, record.createdAt, record.createdBy, record.data.title, record.data.rawLog])
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity))))
@@ -67,11 +69,11 @@ export class IncidentReferenceRoom {
       const current = await tools.get('incidents', record.recordId)
       const latest = incidentRecord.safeParse(current.success ? current.data?.record : null)
       if (!currentMembership?.member || !latest.success
-        || (latest.data.createdBy !== auth.userId && currentMembership.role !== 'admin')
+        || !incidentCapabilities(latest.data, auth.userId, currentMembership.role).read
         || JSON.stringify([latest.data.recordId, latest.data.createdAt, latest.data.createdBy, latest.data.data.title, latest.data.data.rawLog]) !== identity) {
         return fail('The incident or your access changed. Reopen its details.', 409)
       }
-      return Response.json({ success: true, data: state })
+      return Response.json({ success: true, data: { ...state, canSearch: state.canSearch && incidentCapabilities(latest.data, auth.userId, currentMembership.role).operate } })
     } catch {
       return fail('Could not confirm the search state. Check status before trying again.', 503)
     }

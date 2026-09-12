@@ -4,7 +4,7 @@ import { Button, Modal } from '@/components/ui'
 import { requestReferences } from './incident-reference-client'
 import { searchQuery, type ReferenceState, type ReferenceResult } from './incident-reference-types'
 
-export function IncidentReferences({ incidentId }: { incidentId: string }) {
+export function IncidentReferences({ incidentId, readOnly = false }: { incidentId: string; readOnly?: boolean }) {
   const { ready } = useMutations('incidents')
   const [query, setQuery] = useState('')
   const [pendingQuery, setPendingQuery] = useState<string | null>(null)
@@ -18,13 +18,13 @@ export function IncidentReferences({ incidentId }: { incidentId: string }) {
     mounted.current = true
     const current = ++version.current
     const controller = new AbortController()
-    requestReferences(incidentId, 'status', undefined, controller.signal).then((value) => {
+    requestReferences(incidentId, readOnly ? 'report' : 'status', undefined, controller.signal).then((value) => {
       if (!controller.signal.aborted && current === version.current) { setState(value); setQuery(value.query) }
     }).catch((err) => {
       if (!controller.signal.aborted && current === version.current) setError(err instanceof Error ? err.message : 'Could not load references.')
     })
     return () => { mounted.current = false; controller.abort() }
-  }, [incidentId])
+  }, [incidentId, readOnly])
 
   async function request(intent: 'status' | 'search', selectedQuery = query.trim()) {
     if (gate.current) return
@@ -33,7 +33,7 @@ export function IncidentReferences({ incidentId }: { incidentId: string }) {
     setBusy(true)
     setError(null)
     try {
-      const value = await requestReferences(incidentId, intent, selectedQuery || undefined)
+      const value = await requestReferences(incidentId, readOnly ? 'report' : intent, readOnly ? undefined : selectedQuery || undefined)
       if (mounted.current) { setState(value); setQuery(value.query) }
     } catch (err) {
       if (mounted.current) { setState(null); setError(err instanceof Error ? err.message : 'Search outcome unknown. Check status.') }
@@ -45,17 +45,17 @@ export function IncidentReferences({ incidentId }: { incidentId: string }) {
   return <section aria-label="Troubleshooting references" className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
     <h2 className="font-medium">Troubleshooting references</h2>
     <p className="text-sm text-muted-foreground">Search public sources with Exa. References are suggestions for review, not verified fixes.</p>
-    <label className="flex flex-col gap-2 text-sm">Search query
+    {!readOnly && <label className="flex flex-col gap-2 text-sm">Search query
       <input value={query} disabled={busy || (!state && !error)} maxLength={300} onChange={(event) => setQuery(event.target.value)} placeholder="Spring Boot database connection timeout"
         className="rounded-md border border-border bg-background p-2 text-foreground" />
-    </label>
-    <p className="text-xs text-muted-foreground">Only this query is sent to Exa. Remove secrets and personal details. Uses your DeepSpace credits; up to 5 results, 10 searches per account per UTC day. No automatic retries.</p>
+    </label>}
+    {!readOnly && <p className="text-xs text-muted-foreground">Only this query is sent to Exa. Remove secrets and personal details. Uses your DeepSpace credits; up to 5 results, 10 searches per account per UTC day. No automatic retries.</p>}
     {!state && !error && <p role="status">Loading saved references…</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {sameQuery && state?.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
     {sameQuery && state?.phase === 'running' && <p role="status">Search in progress. Check status to retrieve saved results.</p>}
     <div className="flex flex-wrap gap-2">
-      <Button disabled={!ready || busy || !valid || !canSearch} onClick={() => setPendingQuery(query.trim())}>{busy ? 'Waiting…' : 'Search references'}</Button>
+      {!readOnly && <Button disabled={!ready || busy || !valid || !canSearch} onClick={() => setPendingQuery(query.trim())}>{busy ? 'Waiting…' : 'Search references'}</Button>}
       <Button variant="outline" disabled={busy || (!!query.trim() && !valid)} onClick={() => void request('status')}>Check search status</Button>
     </div>
     <Modal open={pendingQuery !== null} onClose={() => setPendingQuery(null)}>

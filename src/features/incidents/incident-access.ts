@@ -8,8 +8,8 @@ export function incidentListCopy(role: IncidentAccessRole) {
     }
   }
   return {
-    heading: 'My incidents',
-    description: 'Only incidents you created appear here.',
+    heading: 'My and shared incidents',
+    description: 'Incidents you created or were invited to appear here.',
   }
 }
 
@@ -33,5 +33,5 @@ export function creatorLabel({
 }) {
   if (createdBy === currentUserId) return currentUserEmail ?? 'You'
   if (role === 'admin') return lookup.getEmail(createdBy) ?? lookup.getName(createdBy) ?? 'Unknown creator'
-  return 'Unknown creator'
+  return lookup.getName(createdBy) ?? 'Unknown creator'
 }

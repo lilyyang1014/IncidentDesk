@@ -13,7 +13,6 @@ import {
   CronRoom,
   JobRoom,
   PresenceRoom,
-  RecordRoom,
   resolveAppRole,
   workerErrorHandler,
   YjsRoom,
@@ -36,6 +35,7 @@ import { registerRealtimeRoutes } from './src/server/realtime-routes.js'
 import { IncidentEmailRoom } from './src/server/incident-email-room.js'
 import { IncidentReferenceRoom } from './src/server/incident-reference-room.js'
 import { IncidentAiRoom } from './src/server/incident-ai-room.js'
+import { IncidentCollaborationRecordRoom } from './src/server/incident-collaboration-room.js'
 
 // Dynamic deploy reads this manifest to create the app's DO bindings.
 export const __DO_MANIFEST__ = [
@@ -57,11 +57,7 @@ export class AppIncidentReferenceRoom extends IncidentReferenceRoom {}
 
 export class AppIncidentAiRoom extends IncidentAiRoom {}
 
-export class AppRecordRoom extends RecordRoom<Env> {
-  constructor(state: DurableObjectState, env: Env) {
-    super(state, env, schemas, { ownerUserId: env.OWNER_USER_ID })
-  }
-}
+export class AppRecordRoom extends IncidentCollaborationRecordRoom {}
 
 export class AppYjsRoom extends YjsRoom<Env> {}
 export class AppCanvasRoom extends CanvasRoom<Env> {}

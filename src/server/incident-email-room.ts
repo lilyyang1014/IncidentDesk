@@ -1,3 +1,4 @@
+import { incidentCapabilities } from '../features/incidents/incident-permissions'
 import { resolveAppMembership, verifyJwt } from 'deepspace/worker'
 import { z } from 'zod'
 import type { Env } from '../../worker'
@@ -34,7 +35,7 @@ export class IncidentEmailRoom {
         if (!membership?.member) throw new Error('Access unavailable')
         const found = await tools.get('incidents', input.incidentId)
         const record = recordSchema.parse(found.success ? found.data?.record : null)
-        if (record.recordId !== input.incidentId || (membership.role !== 'admin' && record.createdBy !== auth.userId)) throw new Error('Access denied')
+        if (record.recordId !== input.incidentId || !incidentCapabilities(record, auth.userId, membership.role).operate) throw new Error('Access denied')
         return record
       }
       const record = await readAuthorized()

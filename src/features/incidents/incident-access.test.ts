@@ -14,10 +14,10 @@ describe('incident access display', () => {
     })
   })
 
-  it('keeps the personal wording for non-admin roles', () => {
+  it('includes invited incidents for non-admin roles', () => {
     expect(incidentListCopy('member')).toEqual({
-      heading: 'My incidents',
-      description: 'Only incidents you created appear here.',
+      heading: 'My and shared incidents',
+      description: 'Incidents you created or were invited to appear here.',
     })
   })
 

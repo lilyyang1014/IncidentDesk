@@ -1,8 +1,10 @@
 import type { CollectionSchema } from 'deepspace/schema'
+import { incidentCollaborators } from './incident-collaboration-schema'
 
 export const incidentsSchema: CollectionSchema = {
   name: 'incidents',
   columns: [
+    incidentCollaborators,
     {
       name: 'title',
       storage: 'text',
@@ -31,9 +33,10 @@ export const incidentsSchema: CollectionSchema = {
     { name: 'analysisSignals', storage: 'text', interpretation: 'plain', required: false },
     { name: 'analysisEvidence', storage: 'text', interpretation: 'plain', required: false },
   ],
+  collaboratorsField: 'collaborators',
   permissions: {
-    viewer: { read: 'own', create: true, update: 'own', delete: 'own' },
-    member: { read: 'own', create: true, update: 'own', delete: 'own' },
+    viewer: { read: 'collaborator', create: true, update: 'own', delete: 'own' },
+    member: { read: 'collaborator', create: true, update: 'own', delete: 'own' },
     admin: { read: true, create: true, update: true, delete: true },
   },
 }
