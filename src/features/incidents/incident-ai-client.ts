@@ -4,6 +4,7 @@ import type { AiAnalysisState } from './incident-ai-types'
 
 const stateSchema = z.object({
   phase: z.enum(['idle', 'running', 'complete', 'failed', 'unknown']),
+  analysisVersion: z.string().optional(), sourceVersion: z.string().optional(),
   canGenerate: z.boolean(), error: z.string().optional(),
   result: z.object({
     summary: z.string(), model: z.string(), generatedAt: z.string(),

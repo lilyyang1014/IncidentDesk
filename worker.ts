@@ -12,7 +12,6 @@ import {
   CanvasRoom,
   CronRoom,
   JobRoom,
-  PresenceRoom,
   resolveAppRole,
   workerErrorHandler,
   YjsRoom,
@@ -32,6 +31,7 @@ import {
   resolveAuth,
 } from './src/server/http-routes.js'
 import { registerRealtimeRoutes } from './src/server/realtime-routes.js'
+import { IncidentPresenceRoom } from './src/server/incident-presence-room.js'
 import { IncidentEmailRoom } from './src/server/incident-email-room.js'
 import { IncidentReferenceRoom } from './src/server/incident-reference-room.js'
 import { IncidentAiRoom } from './src/server/incident-ai-room.js'
@@ -61,7 +61,7 @@ export class AppRecordRoom extends IncidentCollaborationRecordRoom {}
 
 export class AppYjsRoom extends YjsRoom<Env> {}
 export class AppCanvasRoom extends CanvasRoom<Env> {}
-export class AppPresenceRoom extends PresenceRoom<Env> {}
+export class AppPresenceRoom extends IncidentPresenceRoom {}
 
 /** Runs the scheduled tasks defined in src/cron.ts. */
 export class AppCronRoom extends CronRoom<Env> {

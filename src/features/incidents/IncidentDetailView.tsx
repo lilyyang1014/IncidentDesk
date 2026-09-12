@@ -8,7 +8,7 @@ import { formatDate } from './incident-format'
 type Tab = 'overview' | 'analysis' | 'discussion' | 'handoff'
 
 /** Visit panels on demand, then keep them mounted to preserve unsaved drafts. */
-export function IncidentDetailView({ record, onBack, creator, analysis, discussion, handoff, collaborators, localAnalysis }: {
+export function IncidentDetailView({ record, onBack, creator, analysis, discussion, handoff, collaborators, localAnalysis, viewers }: {
   record: RecordData<Incident>
   onBack: () => void
   creator: string
@@ -16,6 +16,7 @@ export function IncidentDetailView({ record, onBack, creator, analysis, discussi
   discussion: ReactNode
   handoff?: ReactNode
   collaborators: ReactNode
+  viewers?: ReactNode
   localAnalysis: ReactNode
 }) {
   const [active, setActive] = useState<Tab>('overview')
@@ -46,6 +47,7 @@ export function IncidentDetailView({ record, onBack, creator, analysis, discussi
             <p className="mt-2 break-words text-xs text-muted-foreground">Created by {creator} · {formatDate(record.createdAt)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {viewers}
             <Badge variant="warning">{record.data.status}</Badge>
             <Button variant="outline" onClick={() => setMembersOpen(true)}><Users className="mr-2 h-4 w-4" />Collaborators</Button>
           </div>

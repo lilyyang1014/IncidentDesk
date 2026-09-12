@@ -1,3 +1,4 @@
+import { incidentDigest } from './incident-identity'
 import { incidentCapabilities } from '../features/incidents/incident-permissions'
 import { resolveAppMembership, verifyJwt } from 'deepspace/worker'
 import { z } from 'zod'
@@ -52,7 +53,7 @@ export class IncidentAiRoom {
         || JSON.stringify([latest.data.recordId, latest.data.createdAt, latest.data.createdBy, latest.data.data.title, latest.data.data.rawLog]) !== identity) {
         return fail('The incident or your access changed. Reopen its details.', 409)
       }
-      return Response.json({ success: true, data: { ...state, canGenerate: state.canGenerate && incidentCapabilities(latest.data, auth.userId, currentMembership.role).operate } })
+      return Response.json({ success: true, data: { ...state, ...(state.result ? { sourceVersion: hash, analysisVersion: await incidentDigest([hash, state.result]) } : {}), canGenerate: state.canGenerate && incidentCapabilities(latest.data, auth.userId, currentMembership.role).operate } })
     } catch {
       return fail('Could not confirm the analysis state. Check status before trying again.', 503)
     }

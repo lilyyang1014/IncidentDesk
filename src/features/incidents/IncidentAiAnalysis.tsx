@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { HypothesisReview } from './collaboration/HypothesisReview'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutations } from 'deepspace'
 import { Button } from '@/components/ui'
 import { requestIncidentAi } from './incident-ai-client'
 import type { AiAnalysisState } from './incident-ai-types'
 
-export function IncidentAiAnalysis({ incidentId, readOnly = false }: { incidentId: string; readOnly?: boolean }) {
+export function IncidentAiAnalysis({ incidentId, incidentCreatedAt, incidentOwner, readOnly = false }: { incidentId: string; incidentCreatedAt?: string; incidentOwner?: string; readOnly?: boolean }) {
   const { ready } = useMutations('incidents')
   const [state, setState] = useState<AiAnalysisState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,7 +57,7 @@ export function IncidentAiAnalysis({ incidentId, readOnly = false }: { incidentI
     {state?.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
     {!state && !error && <p role="status" className="text-sm">Loading AI analysis…</p>}
     {state?.phase === 'running' && <p role="status" className="text-sm">AI analysis is in progress. Check status to retrieve its result without starting another request.</p>}
-    {state?.result && <AiAnalysisView result={state.result} />}
+    {state?.result && <AiAnalysisView result={state.result} renderJudgment={incidentCreatedAt && incidentOwner && state.analysisVersion ? index => <HypothesisReview key={`${state.analysisVersion}:${index}`} incidentOwner={incidentOwner} scope={{ incidentId, incidentCreatedAt, analysisVersion: state.analysisVersion!, hypothesisIndex: index }} /> : undefined} />}
     {!readOnly && state?.canGenerate && <>
       <p className="text-xs text-muted-foreground">Uses your DeepSpace credits and sends the saved logs to OpenAI. Remove secrets before saving logs. Up to 10 requests per account per UTC day; no automatic paid retries.</p>
       <Button disabled={!ready || busy} loading={busy} onClick={() => void request('generate')}>
@@ -69,7 +70,7 @@ export function IncidentAiAnalysis({ incidentId, readOnly = false }: { incidentI
   </section>
 }
 
-export function AiAnalysisView({ result }: { result: NonNullable<AiAnalysisState['result']> }) {
+export function AiAnalysisView({ result, renderJudgment }: { result: NonNullable<AiAnalysisState['result']>; renderJudgment?: (index: number) => ReactNode }) {
   return <div className="flex flex-col gap-4 text-sm">
     <p className="text-xs text-muted-foreground">Saved AI result · {result.model} · {new Date(result.generatedAt).toLocaleString('en-US')}</p>
     <div><h3 className="font-medium">Summary</h3><p className="mt-2 whitespace-pre-wrap">{result.summary}</p></div>
@@ -78,9 +79,10 @@ export function AiAnalysisView({ result }: { result: NonNullable<AiAnalysisState
         <pre className="whitespace-pre-wrap break-words rounded-lg bg-background p-3">[line {item.line}] {item.quote}</pre>
       </li>)}</ul> : <p className="mt-2">No specific evidence identified.</p>}
     </div>
-    <div><h3 className="font-medium">Possible causes — not confirmed</h3>
+    <div><h3 className="font-medium">{renderJudgment ? 'AI hypotheses' : 'Possible causes — not confirmed'}</h3>
       {result.hypotheses.length ? <ul className="mt-2 list-disc space-y-2 pl-5">{result.hypotheses.map((item, index) => <li key={index}>
         {item.explanation} <span className="text-muted-foreground">(Evidence lines: {item.evidenceLines.join(', ')})</span>
+        {renderJudgment?.(index)}
       </li>)}</ul> : <p className="mt-2">Insufficient evidence to suggest a cause.</p>}
     </div>
     <div><h3 className="font-medium">Suggested checks</h3><ul className="mt-2 list-disc space-y-2 pl-5">

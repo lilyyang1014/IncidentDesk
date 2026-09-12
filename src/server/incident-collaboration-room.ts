@@ -1,3 +1,4 @@
+import { internalAssessmentRequest, assessHypothesisInRoom } from './incident-assessments'
 import { incidentWriteRequest } from '../features/incidents/incident-write-types'
 import { writeIncident } from './incident-write'
 import { MSG, RecordRoom, verifyJwt, type ActionResult } from 'deepspace/worker'
@@ -32,7 +33,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname
-    if (path !== '/incident-collaboration' && path !== '/incident-write') return super.fetch(request)
+    if (path !== '/incident-collaboration' && path !== '/incident-write' && path !== '/incident-assessment') return super.fetch(request)
     if (request.method !== 'POST') return fail('Not found.', 404)
     try {
       const header = request.headers.get('Authorization') ?? ''
@@ -42,17 +43,21 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
       const payload = await request.json()
       const write = path === '/incident-write' ? incidentWriteRequest.safeParse(payload) : null
       if (write && !write.success) return fail(write.error.issues[0].message)
+      const assessment = path === '/incident-assessment' ? internalAssessmentRequest.safeParse(payload) : null
+      if (assessment && !assessment.success) return fail('Invalid judgment request.')
       const parsed = collaborationRequest.safeParse(payload)
-      if (!write && !parsed.success) return fail('Invalid collaboration request.')
+      if (!write && !assessment && !parsed.success) return fail('Invalid collaboration request.')
       // Initialize the SDK's schema tables before entering the local gate.
       await super.fetch(new Request('https://internal/api/initialize-collaboration'))
       this.sql.exec('CREATE INDEX IF NOT EXISTS incident_member_lookup ON c_incident_members (col_incidentid, col_incidentcreatedat, col_incidentowner, col_userid)')
       this.sql.exec('CREATE INDEX IF NOT EXISTS incident_note_order ON c_incident_notes (col_incidentid, col_incidentcreatedat, col_incidentowner, col_sequence DESC)')
+      this.sql.exec('CREATE INDEX IF NOT EXISTS incident_assessment_order ON c_incident_assessments (col_incidentid, col_incidentcreatedat, col_incidentowner, col_analysisversion, col_hypothesisindex, col_sequence DESC)')
       return await this.state.blockConcurrencyWhile(async () => {
         const account = await this.tool(auth.userId, 'records.get', { collection: 'users', recordId: auth.userId })
         const user = z.object({ data: z.object({ role: z.string() }) }).safeParse(account.data?.record)
         if (!account.success || !user.success) return fail('Sign in to this app before collaborating.', 403)
         const role = auth.userId === this.env.OWNER_USER_ID ? 'admin' : user.data.data.role
+        if (assessment?.success) return assessHypothesisInRoom(assessment.data, auth.userId, role, this.tool.bind(this), this.sql)
         if (write?.success) return writeIncident(write.data, auth.userId, role, this.tool.bind(this))
         if (!parsed.success) return fail('Invalid collaboration request.')
         const input = parsed.data

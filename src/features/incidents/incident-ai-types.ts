@@ -11,5 +11,7 @@ export type AiAnalysisState = {
   phase: 'idle' | 'running' | 'complete' | 'failed' | 'unknown'
   canGenerate: boolean
   error?: string
+  analysisVersion?: string
+  sourceVersion?: string
   result?: AiAnalysis
 }

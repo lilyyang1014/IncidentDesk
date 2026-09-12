@@ -1,3 +1,4 @@
+import { IncidentViewers } from './collaboration/IncidentViewers'
 import { incidentCapabilities } from './incident-permissions'
 import { IncidentCollaborators } from './collaboration/IncidentCollaborators'
 import { IncidentNotes } from './collaboration/IncidentNotes'
@@ -40,6 +41,7 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
           role: user?.role ?? 'member',
           lookup: { getEmail, getName },
         })}
+        viewers={<IncidentViewers incidentId={selected.recordId} incidentCreatedAt={selected.createdAt} currentUserId={user?.id ?? ''} />}
         localAnalysis={<>
           {capability.operate && <IncidentAnalysisControl record={selected} />}
           <IncidentAnalysisResult incident={selected.data} />
@@ -47,7 +49,7 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
         collaborators={<IncidentCollaborators key={`members:${collaborationKey}`} record={selected} canManage={capability.manageMembers} />}
         discussion={<IncidentNotes key={`notes:${collaborationKey}`} record={selected} />}
         analysis={<div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <div className="min-w-0"><IncidentAiAnalysis readOnly={!capability.operate} key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} /></div>
+          <div className="min-w-0"><IncidentAiAnalysis incidentCreatedAt={selected.createdAt} incidentOwner={selected.createdBy} readOnly={!capability.operate} key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} /></div>
           <div className="min-w-0"><IncidentReferences readOnly={!capability.operate} key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} /></div>
         </div>}
         handoff={capability.operate ? <>
