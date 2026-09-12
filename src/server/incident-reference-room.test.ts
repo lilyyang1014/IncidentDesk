@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../worker'
+import type { ReferenceState } from '../features/incidents/incident-reference-types'
 import { IncidentReferenceRoom } from './incident-reference-room'
 import { registerActionRoutes } from './action-routes'
 import { Hono } from 'hono'
@@ -14,12 +15,14 @@ let record: { recordId: string; createdBy: string; createdAt: string; data: { ti
 let room: IncidentReferenceRoom
 let recordFetch: ReturnType<typeof vi.fn>
 let env: Env
-function request(intent = 'search', incidentId = 'incident-1', token = 'fake-caller') {
+let values: Map<string, unknown>
+function request(intent = 'search', incidentId = 'incident-1', token = 'fake-caller', query = 'timeout') {
   return room.fetch(new Request('https://internal/references', {
-    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ intent, incidentId, ...(intent === 'search' ? { query: 'timeout' } : {}) }),
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ intent, incidentId, ...(intent === 'search' ? { query } : {}) }),
   }))
 }
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.resetAllMocks()
   record = { recordId: 'incident-1', createdBy: 'user-a', createdAt: '2026-09-11', data: { title: 'Timeout', rawLog: 'request timed out' } }
   mocks.verify.mockResolvedValue({ result: { userId: 'user-a' } })
@@ -27,11 +30,11 @@ beforeEach(() => {
   recordFetch = vi.fn(async (_request: Request) => Response.json({ success: true, data: { record } }))
   env = { RECORD_ROOMS: { idFromName: (name: string) => name, get: () => ({ fetch: recordFetch }) },
     DEEPSPACE_APP_ID: 'test-app', APP_IDENTITY_TOKEN: 'fake-app-identity' } as unknown as Env
-  const values = new Map<string, unknown>()
+  values = new Map<string, unknown>()
   const storage = { get: async (key: string) => values.get(key), put: async (key: string, value: unknown) => { values.set(key, value) },
     transaction: async <T,>(work: (tx: unknown) => Promise<T>) => work(storage) }
   room = new IncidentReferenceRoom({ storage } as unknown as DurableObjectState, env)
-  mocks.api.mockResolvedValue(Response.json({ success: true, data: { results: [{ title: 'Timeout guide', url: 'https://example.test/timeout', text: 'Check latency.' }] } }))
+  mocks.api.mockImplementation(async () => Response.json({ success: true, data: { results: [{ title: 'Timeout guide', url: 'https://example.test/timeout', text: 'Check latency.' }] } }))
 })
 
 describe('authenticated reference search boundary', () => {
@@ -120,4 +123,67 @@ describe('public action dispatch', () => {
     registerActionRoutes(app, async () => ({ userId: 'user-a', claims: { sub: 'user-a' } }))
     expect((await app.request('/api/actions/constructor', { method: 'POST', headers: { Authorization: 'Bearer fake' }, body: '{}' }, env)).status).toBe(404)
   })
+})
+
+async function stateResponse(response: Promise<Response>) {
+  return (await (await response).json()) as { data: ReferenceState }
+}
+describe('report reference selection', () => {
+  it('keeps A after B is rate-limited, then uses B only after success', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(100000)
+    await request()
+    const denied = await stateResponse(request('search', 'incident-1', 'fake-caller', 'database'))
+    expect(denied.data.error).toContain('Wait one minute')
+    expect((await stateResponse(request('status'))).data.query).toBe('database')
+    expect((await stateResponse(request('report'))).data.result?.query).toBe('timeout')
+    expect(mocks.api).toHaveBeenCalledTimes(1)
+    clock.mockReturnValue(170000)
+    await request('search', 'incident-1', 'fake-caller', 'database')
+    expect((await stateResponse(request('report'))).data.result?.query).toBe('database')
+    expect(mocks.api).toHaveBeenCalledTimes(2)
+  })
+  it.each([400, 502])('keeps A when B returns HTTP %s', async (status) => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(100000)
+    await request()
+    clock.mockReturnValue(170000)
+    mocks.api.mockResolvedValueOnce(new Response('', { status }))
+    await request('search', 'incident-1', 'fake-caller', 'database')
+    expect((await stateResponse(request('status'))).data.phase).toBe(status === 400 ? 'failed' : 'unknown')
+    expect((await stateResponse(request('report'))).data.result?.query).toBe('timeout')
+    expect(mocks.api).toHaveBeenCalledTimes(2)
+  })
+  it('treats successful empty results as the latest success and isolates changed incidents', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(100000)
+    await request()
+    clock.mockReturnValue(170000)
+    mocks.api.mockResolvedValueOnce(Response.json({ success: true, data: { results: [] } }))
+    await request('search', 'incident-1', 'fake-caller', 'database')
+    expect((await stateResponse(request('report'))).data.result).toMatchObject({ query: 'database', items: [] })
+    record.data.title = 'Changed'
+    expect((await stateResponse(request('report'))).data.phase).toBe('idle')
+    expect(mocks.api).toHaveBeenCalledTimes(2)
+  })
+})
+
+it('preserves a completed legacy selection before a denied new search', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(100000)
+  await request()
+  for (const key of values.keys()) if (key.startsWith('latest-success:')) values.delete(key)
+  await request('search', 'incident-1', 'fake-caller', 'database')
+  expect((await stateResponse(request('report'))).data.result?.query).toBe('timeout')
+  expect(mocks.api).toHaveBeenCalledTimes(1)
+})
+it('keeps the successful report while the latest attempt is still running', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(100000)
+  await request()
+  clock.mockReturnValue(170000)
+  let finish!: (response: Response) => void
+  mocks.api.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+  const pending = request('search', 'incident-1', 'fake-caller', 'database')
+  await vi.waitFor(() => expect(mocks.api).toHaveBeenCalledTimes(2))
+  expect((await stateResponse(request('status'))).data.phase).toBe('running')
+  expect((await stateResponse(request('report'))).data.result?.query).toBe('timeout')
+  finish(Response.json({ success: true, data: { results: [] } }))
+  await pending
+  expect((await stateResponse(request('report'))).data.result?.query).toBe('database')
 })

@@ -37,3 +37,15 @@ The runtime script runs the actual built Worker and RecordRoom with temporary st
 This change does not implement email handoff, review/preview, pagination or deferred recovery improvements. No commit, push, deployment or paid API call is authorized implicitly by this document.
 
 The confirmation dialog was added after the initial Exa acceptance. The user subsequently confirmed dialog checks 1–4 passed, including cancellation, query display and confirmed search. The agent made no live Exa call to verify the dialog.
+
+## Latest successful references
+
+The search panel restores the latest attempted query and shows its own receipt/error. Report preview and newly prepared email drafts use the read-only `report` intent to select the most recently completed search. A rate-limited, failed, unknown or running attempt does not replace that success. A completed empty search does replace it, explicitly showing no results. Re-reading a cached older query does not promote it over a newer completion.
+
+The successful-query pointer and completed receipt are saved in one transaction. Existing saved email drafts remain immutable. A legacy latest-query pointer is preserved as a success only if its receipt is complete. Earlier successes already hidden by an old failed pointer are not automatically discovered; search history recovery remains deferred. With no successful pointer, reports show the latest attempt state and clearly indicate missing results.
+
+Regression tests simulate A succeeding, B being limited/failing/unknown/running, then B completing; they also cover empty results, legacy selection and changed incident isolation. No live Exa calls are needed. Manual paid acceptance, only when desired: start with saved A, confirm a different query B during cooldown, check its limit message, then reopen the report and prepare/review a new email draft. Both should still show A. Do not send mail for this check.
+
+Local validation: 205 tests across 20 files, TypeScript, ESLint and diff checks passed. No production build or isolated Worker script rerun for this change; no live provider calls.
+
+User acceptance: a second query returned the one-minute limit message. The user confirmed the report still contained the first query’s links, then prepared/reviewed a new email draft, canceled, and confirmed no Exa invocation. The search panel itself shows the latest attempt and may hide earlier links; those links remain saved and available to the report.

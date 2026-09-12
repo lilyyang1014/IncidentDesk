@@ -19,7 +19,7 @@ function present(query: string, entry?: Entry, now = Date.now()): ReferenceState
 /** Private durable receipts, not a background job runner. Claims survive a
  * restart; an interrupted request stays unknown rather than charging again. */
 export async function runStoredReferences(storage: ReferenceStorage, key: string, userId: string, query: string, generate: boolean,
-  call: () => Promise<ReferenceResult>, now = Date.now()): Promise<ReferenceState> {
+  call: () => Promise<ReferenceResult>, now = Date.now(), successKey?: string): Promise<ReferenceState> {
   const claim = await storage.transaction(async (tx) => {
     const previous = await tx.get<Entry>(key)
     const view = present(query, previous, now)
@@ -49,6 +49,10 @@ export async function runStoredReferences(storage: ReferenceStorage, key: string
   }
   // If persistence fails, leave the durable running claim intact. Never retry
   // the provider merely because the final storage acknowledgement was lost.
-  await storage.put(key, next)
+  if (!successKey) await storage.put(key, next)
+  else await storage.transaction(async (tx) => {
+    await tx.put(key, next)
+    if (next.phase === 'complete' && successKey) await tx.put(successKey, query)
+  })
   return present(query, next)
 }

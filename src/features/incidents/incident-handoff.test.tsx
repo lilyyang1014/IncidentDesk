@@ -15,7 +15,7 @@ it('reads only status and propagates cancellation to both requests', async () =>
   mocks.references.mockResolvedValue({ phase: 'idle', canSearch: true, query: '' })
   await loadHandoffResults('event', signal)
   expect(mocks.ai).toHaveBeenCalledExactlyOnceWith('event', 'status', signal)
-  expect(mocks.references).toHaveBeenCalledExactlyOnceWith('event', 'status', undefined, signal)
+  expect(mocks.references).toHaveBeenCalledExactlyOnceWith('event', 'report', undefined, signal)
 })
 it('fails instead of presenting a failed read as absent data', async () => {
   mocks.ai.mockRejectedValue(new Error('Access denied'))

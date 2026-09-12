@@ -45,7 +45,7 @@ export class IncidentEmailRoom {
         // Status actions only: never regenerate AI or invoke Exa while preparing mail.
         const readStatus = async (namespace: DurableObjectNamespace, path: string) => {
           const room = namespace.get(namespace.idFromName(`app:${this.env.DEEPSPACE_APP_ID}`))
-          const response = await room.fetch(new Request(`https://internal/${path}`, { method: 'POST', headers: { Authorization: token, 'Content-Type': 'application/json' }, body: JSON.stringify({ incidentId: input.incidentId, intent: 'status' }) }))
+          const response = await room.fetch(new Request(`https://internal/${path}`, { method: 'POST', headers: { Authorization: token, 'Content-Type': 'application/json' }, body: JSON.stringify({ incidentId: input.incidentId, intent: path === 'references' ? 'report' : 'status' }) }))
           if (!response.ok) throw new Error('Status unavailable')
           return z.object({ success: z.literal(true), data: z.unknown() }).parse(await response.json()).data
         }

@@ -5,7 +5,7 @@ import { requestReferences } from './incident-reference-client'
 export async function loadHandoffResults(incidentId: string, signal?: AbortSignal) {
   const [ai, references] = await Promise.all([
     requestIncidentAi(incidentId, 'status', signal),
-    requestReferences(incidentId, 'status', undefined, signal),
+    requestReferences(incidentId, 'report', undefined, signal),
   ])
   return { ai, references }
 }

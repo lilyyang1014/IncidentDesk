@@ -2,7 +2,7 @@ import { getAuthToken } from 'deepspace'
 import { z } from 'zod'
 import { referenceStateSchema, type ReferenceState } from './incident-reference-types'
 
-export async function requestReferences(incidentId: string, intent: 'status' | 'search', query?: string, signal?: AbortSignal): Promise<ReferenceState> {
+export async function requestReferences(incidentId: string, intent: 'status' | 'search' | 'report', query?: string, signal?: AbortSignal): Promise<ReferenceState> {
   const token = await getAuthToken()
   if (!token) throw new Error('Sign in again to access references.')
   const response = await fetch('/api/actions/findIncidentReferences', {

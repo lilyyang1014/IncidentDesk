@@ -5,7 +5,7 @@ import type { Env } from '../../worker'
 
 export const referenceRequest = z.object({
   incidentId: z.string().min(1).max(200),
-  intent: z.enum(['status', 'search']),
+  intent: z.enum(['status', 'search', 'report']),
   query: searchQuery.optional(),
 }).strict().refine((input) => input.intent !== 'search' || !!input.query)
 

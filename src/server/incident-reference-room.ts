@@ -39,14 +39,28 @@ export class IncidentReferenceRoom {
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity))))
         .map((byte) => byte.toString(16).padStart(2, '0')).join('')
       const lastKey = `latest:${hash}`
-      const query = input.data.query ?? await this.ctx.storage.get<string>(lastKey) ?? ''
-      const queryHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(query))))
-        .map((byte) => byte.toString(16).padStart(2, '0')).join('')
-      // Store the selected query before invoking the provider so refresh can
-      // recover its receipt even when the response is lost.
+      const successKey = `latest-success:${hash}`
+      const receiptKey = async (query: string) => {
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(query))
+        const queryHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+        return `references:v1:${hash}:${queryHash}`
+      }
+      // Preserve a completed legacy selection before a new attempt replaces it.
+      const previousQuery = await this.ctx.storage.get<string>(lastKey)
+      if (previousQuery && !await this.ctx.storage.get<string>(successKey)) {
+        const previous = await runStoredReferences(this.ctx.storage, await receiptKey(previousQuery), auth.userId, previousQuery, false,
+          () => searchReferences(this.env, jwt, previousQuery))
+        if (previous.phase === 'complete') await this.ctx.storage.transaction(async (tx) => {
+          if (!await tx.get(successKey)) await tx.put(successKey, previousQuery)
+        })
+      }
+      const query = input.data.intent === 'report'
+        ? await this.ctx.storage.get<string>(successKey) ?? previousQuery ?? ''
+        : input.data.query ?? previousQuery ?? ''
+      // The attempt pointer still supports refresh and interrupted-request recovery.
       if (input.data.intent === 'search') await this.ctx.storage.put(lastKey, query)
-      const state = await runStoredReferences(this.ctx.storage, `references:v1:${hash}:${queryHash}`, auth.userId, query, input.data.intent === 'search',
-        () => searchReferences(this.env, jwt, query))
+      const state = await runStoredReferences(this.ctx.storage, await receiptKey(query), auth.userId, query, input.data.intent === 'search',
+        () => searchReferences(this.env, jwt, query), Date.now(), successKey)
       // Re-check access and input after a potentially slow provider response.
       // A changed/deleted record must not receive stale analysis in the UI.
       const currentMembership = await resolveAppMembership(this.env, auth.userId)

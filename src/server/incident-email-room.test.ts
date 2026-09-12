@@ -19,7 +19,7 @@ beforeEach(() => {
   const values = new Map<string, unknown>()
   const storage = { get: async (key: string) => values.get(key), put: async (key: string, value: unknown) => { values.set(key, value) }, transaction: async <T,>(work: (tx: unknown) => Promise<T>) => work(storage) }
   statusCalls = vi.fn(async (req: Request) => {
-    expect(await req.json()).toEqual({ incidentId: 'event', intent: 'status' })
+    expect(await req.json()).toEqual({ incidentId: 'event', intent: new URL(req.url).pathname === '/references' ? 'report' : 'status' })
     return Response.json({ success: true, data: { phase: 'idle', canSearch: true, query: '' } })
   })
   const namespace = (fetcher: (req: Request) => Promise<Response>) => ({ idFromName: (name: string) => name, get: () => ({ fetch: fetcher }) })
