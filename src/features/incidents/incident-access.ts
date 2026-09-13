@@ -3,13 +3,13 @@ export type IncidentAccessRole = 'admin' | 'member' | 'viewer' | string
 export function incidentListCopy(role: IncidentAccessRole) {
   if (role === 'admin') {
     return {
-      heading: 'All incidents',
-      description: 'Incidents visible to your admin role appear here.',
+      heading: 'Incidents',
+      description: 'Your personal lists show incidents you created or that others shared with you. Admin access to other incidents is unchanged.',
     }
   }
   return {
-    heading: 'My and shared incidents',
-    description: 'Incidents you created or were invited to appear here.',
+    heading: 'Incidents',
+    description: 'Track incidents you created or that others shared with you.',
   }
 }
 

@@ -7,17 +7,17 @@ const lookup = {
 }
 
 describe('incident access display', () => {
-  it('describes the admin view as all visible incidents', () => {
+  it('keeps admin personal lists distinct from their broader access', () => {
     expect(incidentListCopy('admin')).toEqual({
-      heading: 'All incidents',
-      description: 'Incidents visible to your admin role appear here.',
+      heading: 'Incidents',
+      description: 'Your personal lists show incidents you created or that others shared with you. Admin access to other incidents is unchanged.',
     })
   })
 
   it('includes invited incidents for non-admin roles', () => {
     expect(incidentListCopy('member')).toEqual({
-      heading: 'My and shared incidents',
-      description: 'Incidents you created or were invited to appear here.',
+      heading: 'Incidents',
+      description: 'Track incidents you created or that others shared with you.',
     })
   })
 

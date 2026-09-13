@@ -13,7 +13,7 @@ import { incidentIdFromSearch, incidentSearch } from '@/features/incidents/incid
 
 export default function IncidentsPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
-  const list = useIncidentList()
+  const list = useIncidentList(user?.id ?? '')
   const { ready } = useMutations<Incident>('incidents')
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = incidentIdFromSearch(searchParams.toString())
@@ -29,6 +29,7 @@ export default function IncidentsPage() {
     event.preventDefault()
     const recordId = await saveFlow.submit({ title, rawLog }, createIncidentConfirmed)
     if (recordId) {
+      list.refreshMine()
       setTitle('')
       setRawLog('')
       setSearchParams(incidentSearch(recordId))
@@ -66,7 +67,7 @@ export default function IncidentsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">{listCopy.heading}</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              {listCopy.description} Save the incident title and original logs as a verifiable starting point for later analysis and handoff.
+              {listCopy.description} Save the title and original logs as a verifiable starting point for investigation and handoff.
             </p>
           </div>
           <Link to="/home" className="text-sm text-muted-foreground hover:text-foreground">
@@ -80,7 +81,7 @@ export default function IncidentsPage() {
         rawLog={rawLog}
         saveState={saveState}
         ready={ready}
-        listReady={list.status === 'ready'}
+        listReady={list.view === 'mine' && list.status === 'ready'}
         onTitleChange={setTitle}
         onRawLogChange={setRawLog}
         onSubmit={handleCreate}
@@ -90,7 +91,7 @@ export default function IncidentsPage() {
 
       <IncidentList
         result={list}
-        description={listCopy.description}
+        userId={user?.id ?? ''}
         disabled={isCreating}
         onOpen={(recordId) => setSearchParams(incidentSearch(recordId))}
       />

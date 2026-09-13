@@ -47,12 +47,13 @@ describe('incident detail query rendering', () => {
     expect(hooks.query).toHaveBeenCalledWith('incidents', { where: { recordId: 'incident-1' }, limit: 1 })
   })
 
-  it('keeps the list limited to 50 and does not subscribe to a detail without an ID', () => {
+  it('starts with the two paged lists without issuing a broad record subscription', () => {
     const html = render('/incidents')
-    expect(html).toContain('Incident number 51')
+    expect(html).toContain('My incidents')
+    expect(html).toContain('Shared with me')
+    expect(html).toContain('Loading incidents')
     expect(html).not.toContain('Original log 1</')
-    expect(hooks.query).toHaveBeenCalledTimes(1)
-    expect(hooks.query).toHaveBeenCalledWith('incidents', { orderBy: 'createdAt', orderDir: 'desc', limit: 50 })
+    expect(hooks.query).not.toHaveBeenCalled()
   })
 
   it('loads the requested URL on a fresh mount and reads a different ID on another mount', () => {
