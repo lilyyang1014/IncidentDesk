@@ -1,3 +1,4 @@
+import { loadSavedFindings } from './incident-findings'
 import { incidentCapabilities } from '../features/incidents/incident-permissions'
 import { resolveAppMembership, verifyJwt } from 'deepspace/worker'
 import { z } from 'zod'
@@ -7,11 +8,12 @@ import { emailDraftSchema } from '../features/incidents/incident-email-types'
 import { referenceStateSchema } from '../features/incidents/incident-reference-types'
 import { createActionTools } from './action-routes'
 import { formatEmailReport } from './incident-email-content'
+import { formatEmailHtml } from './incident-email-html'
 import { presentEmail, sendStoredEmail, type StoredEmail } from './incident-email-store'
 import { sendGmail } from './incident-email-provider'
 
 const recordSchema = z.object({ recordId: z.string(), createdBy: z.string(), createdAt: z.string(), data: z.object({ title: z.string().trim().min(1).max(120), rawLog: z.string().min(1).max(20000) }) })
-const aiSchema = z.object({ phase: z.string(), result: z.object({ summary: z.string(), model: z.string(), generatedAt: z.string(), evidence: z.array(z.object({ line: z.number(), quote: z.string() })), hypotheses: z.array(z.object({ explanation: z.string(), evidenceLines: z.array(z.number()) })), suggestedChecks: z.array(z.string()) }).optional() })
+const aiSchema = z.object({ phase: z.string(), analysisVersion: z.string().optional(), sourceVersion: z.string().optional(), result: z.object({ summary: z.string(), model: z.string(), generatedAt: z.string(), evidence: z.array(z.object({ line: z.number(), quote: z.string() })), hypotheses: z.array(z.object({ explanation: z.string(), evidenceLines: z.array(z.number()) })), suggestedChecks: z.array(z.string()) }).optional() })
 async function hash(value: string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))).map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
@@ -53,10 +55,12 @@ export class IncidentEmailRoom {
         const [aiData, refData] = await Promise.all([readStatus(this.env.INCIDENT_AI_ROOMS, 'analysis'), readStatus(this.env.INCIDENT_REFERENCE_ROOMS, 'references')])
         const ai = aiSchema.parse(aiData)
         const references = referenceStateSchema.parse(refData)
-        const content = formatEmailReport(record, ai.phase === 'complete' ? ai.result : undefined, references.phase === 'complete' ? references.result : undefined, input.includeLogs)
+        const findings = await loadSavedFindings(this.env, jwt, record.recordId, ai)
+        const content = formatEmailReport(record, ai.phase === 'complete' ? ai.result : undefined, references.phase === 'complete' ? references.result : undefined, input.includeLogs, findings)
+        const html = formatEmailHtml(record, ai.phase === 'complete' ? ai.result : undefined, references.phase === 'complete' ? references.result : undefined, input.includeLogs, findings)
         if (source !== await hash(JSON.stringify(await readAuthorized()))) return fail('Incident changed. Prepare the email again.', 409)
-        const id = await hash(JSON.stringify([auth.userId, source, input.to, input.subject, content, input.includeLogs]))
-        const draft = emailDraftSchema.parse({ id, to: input.to, subject: input.subject, content, includeLogs: input.includeLogs, createdAt: new Date().toISOString() })
+        const id = await hash(JSON.stringify([auth.userId, source, input.to, input.subject, content, html, input.includeLogs]))
+        const draft = emailDraftSchema.parse({ id, to: input.to, subject: input.subject, content, html, includeLogs: input.includeLogs, createdAt: new Date().toISOString() })
         entry = await this.ctx.storage.transaction(async (tx) => {
           const existing = await tx.get<StoredEmail>(`draft:${id}`)
           const next = existing ?? { draft, userId: auth.userId, source, incidentId: input.incidentId, attempts: 0, oauthAttempts: 0 }

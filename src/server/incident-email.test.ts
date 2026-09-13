@@ -3,6 +3,7 @@ import type { Env } from '../../worker'
 import { sendGmail } from './incident-email-provider'
 import { sendStoredEmail, presentEmail, type EmailStorage, type StoredEmail } from './incident-email-store'
 import { formatEmailReport } from './incident-email-content'
+import { formatEmailHtml } from './incident-email-html'
 import { emailRequest } from '../actions/incident-email'
 import { integrationBilling } from '../integrations'
 const api = vi.hoisted(() => vi.fn())
@@ -23,6 +24,20 @@ it('sends only the saved payload, with caller identity', async () => {
   expect(api.mock.calls[0][1]).toBe('/api/integrations/google/gmail-send')
   expect(api.mock.calls[0][2].headers.Authorization).toBe('Bearer caller-token')
   expect(JSON.parse(api.mock.calls[0][2].body)).toEqual({ to: draft.to, subject: draft.subject, content: draft.content })
+})
+it('sends the exact saved HTML alongside the plain-text fallback', async () => {
+  api.mockResolvedValue(Response.json({ success: true, data: { id: 'gmail-message' } }))
+  const saved = { ...draft, html: '<p><strong>Saved judgment</strong></p>' }
+  await sendGmail(env, 'caller-token', saved)
+  expect(JSON.parse(api.mock.calls[0][2].body)).toEqual({ to: saved.to, subject: saved.subject, content: saved.content, html: saved.html })
+})
+it('escapes report inputs and keeps unsafe reference URLs inert in formatted emails', () => {
+  const html = formatEmailHtml({ recordId: 'event', createdAt: 'now', data: { title: '<img src=x onerror=alert(1)>', rawLog: '<script>bad()</script>' } }, undefined, { query: 'test', searchedAt: 'now', items: [{ title: '<b>Source</b>', url: 'javascript:alert(1)', excerpt: '<iframe src="https://example.test">' }] }, true)
+  expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  expect(html).toContain('&lt;script&gt;bad()&lt;/script&gt;')
+  expect(html).not.toMatch(/<(script|img|iframe)\b/)
+  expect(html).not.toContain('href="javascript:')
+  expect(html).toContain('<h2')
 })
 it('returns OAuth as a separate state without automatically retrying', async () => {
   api.mockResolvedValue(Response.json({ success: true, data: { requiresOAuth: true, provider: 'google', authUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=test' } }))
@@ -138,4 +153,16 @@ it('retains the send reservation if persisting an OAuth outcome fails', async ()
   expect(await s.get<StoredEmail>('draft')).toMatchObject({ attempts: 1, oauthAttempts: 0 })
   expect((await sendStoredEmail(s, 'draft', 'user', call, 300000)).phase).toBe('unknown')
   expect(call).toHaveBeenCalledOnce()
+})
+
+it('includes the latest human finding as plain text even when full logs are omitted',()=>{
+  const snapshot={analysisVersion:'a'.repeat(64),sourceVersion:'b'.repeat(64),capturedAt:'now',findings:[{hypothesisIndex:0,explanation:'Dependency delay',status:'Confirmed' as const,reason:'Measured 10 seconds',actorId:'b',actorName:'Test B',judgedAt:'2026-09-12',sequence:3}]}
+  const ai={summary:'Dependency timed out',evidence:[],hypotheses:[{explanation:'Dependency delay',evidenceLines:[]}],suggestedChecks:[],model:'test',generatedAt:'now'}
+  const text=formatEmailReport({recordId:'event',createdAt:'now',data:{title:'Test',rawLog:'FULL LOGS'}},ai,undefined,false,snapshot)
+  for(const value of ['AI-generated hypotheses','Hypothesis 1: Dependency delay','Evidence lines: none cited','See Investigation findings below','Later investigation updates are not reflected','Investigation findings','Human judgment: Confirmed','Measured 10 seconds','Test B (b)','Revision 3','human judgment reasons may contain log excerpts']) expect(text).toContain(value)
+  expect(text).not.toContain('Possible causes — not confirmed')
+  expect(text).not.toContain('This is not a confirmed root-cause report.')
+  expect(text).not.toContain('FULL LOGS')
+  expect(formatEmailReport({recordId:'event',createdAt:'now',data:{title:'Test',rawLog:'FULL LOGS'}},ai,undefined,false,{...snapshot,capturedAt:'later'})).toBe(text)
+  expect(formatEmailReport({recordId:'event',createdAt:'now',data:{title:'Test',rawLog:''}},{...ai,hypotheses:[]},undefined,false,{...snapshot,findings:[]})).toContain('No hypotheses were identified in the saved AI analysis.')
 })

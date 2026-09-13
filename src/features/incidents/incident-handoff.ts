@@ -1,3 +1,5 @@
+import { investigationAction } from './collaboration/investigation-client'
+import { findingsSnapshotSchema } from './incident-findings-types'
 import { requestIncidentAi } from './incident-ai-client'
 import { requestReferences } from './incident-reference-client'
 
@@ -7,6 +9,7 @@ export async function loadHandoffResults(incidentId: string, signal?: AbortSigna
     requestIncidentAi(incidentId, 'status', signal),
     requestReferences(incidentId, 'report', undefined, signal),
   ])
-  return { ai, references }
+  const findings = ai.phase === 'complete' && ai.result ? findingsSnapshotSchema.parse(await investigationAction('incidentFindings', { incidentId, analysisVersion: ai.analysisVersion }, signal)) : undefined
+  return { ai, references, findings }
 }
 export type HandoffResults = Awaited<ReturnType<typeof loadHandoffResults>>

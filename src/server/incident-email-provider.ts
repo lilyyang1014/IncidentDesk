@@ -10,7 +10,7 @@ export async function sendGmail(env: Env, jwt: string, draft: EmailDraft): Promi
     const response = await apiWorkerFetch(env, '/api/integrations/google/gmail-send', {
       method: 'POST', signal: AbortSignal.timeout(90000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}`, 'x-app-id': env.DEEPSPACE_APP_ID, 'x-app-identity-token': env.APP_IDENTITY_TOKEN },
-      body: JSON.stringify({ to: draft.to, subject: draft.subject, content: draft.content }),
+      body: JSON.stringify({ to: draft.to, subject: draft.subject, content: draft.content, ...(draft.html ? { html: draft.html } : {}) }),
     })
     if (!response.ok) {
       if (response.status === 402) return { phase: 'failed', error: 'Your DeepSpace account has insufficient credits. No automatic retry will occur.' }

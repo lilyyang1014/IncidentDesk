@@ -71,7 +71,7 @@ export function HypothesisReview({ scope, incidentOwner }: { scope: AssessmentSc
     {status === 'loading' && <p role="status">Loading judgments…</p>}
     {status === 'error' && <p role="alert">{queryError ?? 'Judgments are unavailable. Reconnect before saving.'}</p>}
     {status === 'ready' && (latest ? entry(latest) : <p>Unverified · No human judgment recorded.</p>)}
-    <p className="text-xs text-muted-foreground">A human assessment of this saved AI hypothesis, not proof of the root cause. Changes keep history and are not added to reports or emails.</p>
+    <p className="text-xs text-muted-foreground">A human assessment of this saved AI hypothesis, not proof of the root cause. Changes keep history. Newly prepared handoffs include the latest judgment; existing email drafts remain unchanged.</p>
     {!editing && <Button className="self-start" variant="outline" disabled={!ready || status !== 'ready'} onClick={() => {
       setEditing(true); setExpected(latest?.data.sequence ?? 0); setChoice(latest?.data.status ?? 'Unverified'); setError(''); setNotice('')
     }}>{latest ? 'Update judgment' : 'Record judgment'}</Button>}

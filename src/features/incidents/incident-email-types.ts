@@ -7,6 +7,7 @@ export const googleAuthUrl = z.string().url().max(12000).refine((value) => {
 })
 export const emailDraftSchema = z.object({
   id: z.string(), to: recipientSchema, subject: subjectSchema, content: z.string().max(100000),
+  html: z.string().max(500000).optional(),
   includeLogs: z.boolean(), createdAt: z.string(),
 })
 export type EmailDraft = z.infer<typeof emailDraftSchema>

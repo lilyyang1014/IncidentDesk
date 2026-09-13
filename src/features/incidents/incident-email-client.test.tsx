@@ -28,6 +28,6 @@ it('initial UI exposes no send confirmation and does not call a provider during 
   const html = renderToStaticMarkup(<IncidentEmail incidentId="event" title="Incident" />)
   expect(html).toContain('Prepare email draft')
   expect(html).not.toContain('Confirm send email')
-  expect(html).toContain('AI evidence may include log excerpts')
+  expect(html).toContain('AI evidence and human judgment reasons may include log excerpts')
   expect(fetcher).not.toHaveBeenCalled()
 })

@@ -10,6 +10,7 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [review, setReview] = useState(false)
+  const [plainText, setPlainText] = useState(false)
   const gate = useRef(false)
   const mounted = useRef(true)
   const version = useRef(0)
@@ -55,7 +56,7 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
     <label className="flex flex-col gap-1 text-sm">Recipient<input type="email" value={to} maxLength={254} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { to: event.target.value } })} className="rounded-md border border-border bg-background p-2" /></label>
     <label className="flex flex-col gap-1 text-sm">Subject<input value={subject} maxLength={160} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { subject: event.target.value } })} className="rounded-md border border-border bg-background p-2" /></label>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeLogs} disabled={busy || locked} onChange={(event) => updateForm({ type: 'edit', fields: { includeLogs: event.target.checked } })} />Include full original logs</label>
-    <p className="text-xs text-muted-foreground">AI evidence may include log excerpts even when full logs are excluded. Preparing and reviewing do not send mail. Sending uses DeepSpace credits.</p>
+    <p className="text-xs text-muted-foreground">AI evidence and human judgment reasons may include log excerpts even when full logs are excluded. Preparing and reviewing do not send mail. Sending uses DeepSpace credits.</p>
     <div className="flex flex-wrap gap-2">
       <Button disabled={busy || locked || !recipientSchema.safeParse(to).success || !subjectSchema.safeParse(subject).success} onClick={() => void run({ intent: 'prepare', to, subject, includeLogs })}>Prepare email draft</Button>
       <Button variant="outline" disabled={busy} onClick={() => void run({ intent: 'status' })}>Check email status</Button>
@@ -73,15 +74,19 @@ export function IncidentEmail({ incidentId, title }: { incidentId: string; title
     {state?.draft && <div className="rounded-lg border border-border p-3 text-sm">
       <p className="font-medium">Saved draft</p>
       <p className="mt-2 break-all">To: {state.draft.to}</p><p className="break-words">Subject: {state.draft.subject}</p>
-      <p className="mt-1 text-muted-foreground">Form edits apply only after preparing a new draft. The saved draft below is what will be sent.</p>
+      <p className="mt-1 text-muted-foreground">Form edits and newer investigation judgments apply only after preparing a new draft. The saved draft below is what will be sent.</p>
       <Button className="mt-3" variant="outline" disabled={busy} onClick={() => setReview(true)}>{sendable ? 'Review and send email' : 'View saved email'}</Button>
     </div>}
-    <Modal open={review} onClose={() => setReview(false)} size="xl">
+    <Modal open={review} onClose={() => setReview(false)} size="xl" className={state?.draft?.html ? 'h-[85vh]' : undefined}>
       <Modal.Header><Modal.Title>Review handoff email</Modal.Title><Modal.Description>Check the recipient and complete body. Confirming may immediately send this email and consume DeepSpace credits. If authorization is needed, you must confirm again afterward.</Modal.Description></Modal.Header>
-      <Modal.Body>{state?.draft && <>
+      <Modal.Body className={state?.draft?.html ? 'flex min-h-0 flex-col overflow-hidden' : undefined}>{state?.draft && <>
         <p className="break-all font-medium">To: {state.draft.to}</p><p className="mt-2 break-words font-medium">Subject: {state.draft.subject}</p>
         <p className="mt-2 text-sm">Full original logs: {state.draft.includeLogs ? 'Included' : 'Excluded'}</p>
-        <pre className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-background p-3 text-sm">{state.draft.content}</pre>
+        {state.draft.html ? <>
+          <p className="mt-3 text-sm text-muted-foreground">Formatted email preview. Email apps may display spacing and fonts differently.</p>
+          <button type="button" className="mt-2 self-start text-sm text-primary underline" onClick={() => setPlainText(!plainText)}>{plainText ? 'Show formatted email' : 'Show plain-text version'}</button>
+          {plainText ? <pre className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 text-sm">{state.draft.content}</pre> : <iframe title="Formatted email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={state.draft.html.replace('<head>', '<head><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;">')} className="mt-3 min-h-0 w-full flex-1 border-0 bg-white" />}
+        </> : <pre className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-background p-3 text-sm">{state.draft.content}</pre>}
       </>}</Modal.Body>
       <Modal.Footer><Button variant="outline" onClick={() => setReview(false)}>Cancel</Button>
         {sendable && <Button disabled={busy} onClick={() => { if (state?.draft) void run({ intent: 'send', draftId: state.draft.id, confirmed: true }) }}>Confirm send email</Button>}

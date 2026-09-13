@@ -1,3 +1,4 @@
+import { incidentDigest, sourceIdentity } from '../../server/incident-identity'
 import { useEffect, useRef, useState } from 'react'
 import type { RecordData } from 'deepspace'
 import { Button, Modal } from '@/components/ui'
@@ -12,6 +13,7 @@ export function IncidentHandoffPreview({ record }: { record: RecordData<Incident
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<HandoffResults | null>(null)
+  const [snapshotRecord, setSnapshotRecord] = useState(record)
   const controller = useRef<AbortController | null>(null)
   useEffect(() => () => controller.current?.abort(), [])
 
@@ -27,12 +29,14 @@ export function IncidentHandoffPreview({ record }: { record: RecordData<Incident
     if (controller.current) return
     const request = new AbortController()
     controller.current = request
+    setSnapshotRecord(structuredClone(record))
     setOpen(true)
     setBusy(true)
     setError(null)
     setResults(null)
     try {
       const saved = await loadHandoffResults(record.recordId, request.signal)
+      if (saved.ai.sourceVersion && saved.ai.sourceVersion !== await incidentDigest(sourceIdentity(record))) throw new Error('Source changed')
       if (!request.signal.aborted) setResults(saved)
     } catch {
       if (!request.signal.aborted) setError('Could not load the saved report data. Close this preview and try again.')
@@ -42,7 +46,7 @@ export function IncidentHandoffPreview({ record }: { record: RecordData<Incident
   }
   return <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5" aria-label="Incident handoff">
     <h2 className="font-medium">Incident handoff</h2>
-    <p className="text-sm text-muted-foreground">Review the incident, saved AI analysis and latest reference search together. Opening a preview uses no model or search credits.</p>
+    <p className="text-sm text-muted-foreground">Review the incident, saved AI analysis, human judgments and latest reference search together. Opening a preview uses no model or search credits.</p>
     <Button className="self-start" disabled={busy} onClick={() => void preview()}>Preview handoff report</Button>
     <Modal open={open} onClose={close} size="xl">
       <Modal.Header>
@@ -52,7 +56,7 @@ export function IncidentHandoffPreview({ record }: { record: RecordData<Incident
       <Modal.Body>
         {busy && <p role="status">Loading saved report data…</p>}
         {error && <p role="alert" className="text-destructive">{error}</p>}
-        {results && <HandoffReport record={record} results={results} />}
+        {results && <HandoffReport record={snapshotRecord} results={results} />}
       </Modal.Body>
       <Modal.Footer><Button variant="outline" onClick={close}>Close preview</Button></Modal.Footer>
     </Modal>
@@ -72,6 +76,20 @@ export function HandoffReport({ record, results }: { record: RecordData<Incident
       {results.ai.phase === 'complete' && results.ai.result
         ? <AiAnalysisView result={results.ai.result} />
         : <p>No completed AI analysis is available. Current state: {results.ai.phase}. This preview does not generate it.</p>}
+    </section>
+    <section className="flex flex-col gap-3">
+      <h3 className="font-semibold">Investigation findings</h3>
+      <p className="text-muted-foreground">Human judgments, not AI conclusions or proof of root cause. This snapshot includes the latest recorded judgment for each hypothesis.</p>
+      {!results.findings ? <p>No completed AI analysis was available for investigation findings.</p>
+        : !results.findings.findings.length ? <p>No human judgments recorded for this analysis version.</p>
+          : results.findings.findings.map(finding => <article key={finding.hypothesisIndex} className="flex flex-col gap-2 rounded-lg border border-border p-4">
+            <h4 className="font-medium">Hypothesis {finding.hypothesisIndex + 1}</h4>
+            <p className="whitespace-pre-wrap break-words">{finding.explanation}</p>
+            <p className="font-medium">{`Human judgment: ${finding.status} · Revision ${finding.sequence}`}</p>
+            <p className="whitespace-pre-wrap break-words"><span className="font-medium">Evidence and reason: </span>{finding.reason}</p>
+            <p className="break-words text-muted-foreground">{`${finding.actorName} (${finding.actorId})`}</p>
+            <p className="text-muted-foreground">{finding.judgedAt}</p>
+          </article>)}
     </section>
     <section className="flex flex-col gap-3">
       <h3 className="font-semibold">Troubleshooting references</h3>

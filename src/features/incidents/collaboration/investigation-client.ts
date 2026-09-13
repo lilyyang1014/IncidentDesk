@@ -4,7 +4,7 @@ import { z } from 'zod'
 export class InvestigationError extends Error {
   constructor(message: string, readonly code = 'unavailable') { super(message) }
 }
-export async function investigationAction(action: 'assessHypothesis' | 'incidentViewers', input: unknown, signal?: AbortSignal, keepalive = false): Promise<unknown> {
+export async function investigationAction(action: 'assessHypothesis' | 'incidentViewers' | 'incidentFindings', input: unknown, signal?: AbortSignal, keepalive = false): Promise<unknown> {
   const token = await getAuthToken()
   if (!token) throw new InvestigationError('Sign in again to continue.', 'access_denied')
   const response = await fetch(`/api/actions/${action}`, {

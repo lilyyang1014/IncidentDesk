@@ -1,3 +1,4 @@
+import { findingsReadRequest, readFindingsInRoom } from './incident-findings'
 import { reserveIncidentWrite } from './incident-write-limit'
 import { internalAssessmentRequest, assessHypothesisInRoom } from './incident-assessments'
 import { incidentWriteRequest } from '../features/incidents/incident-write-types'
@@ -36,7 +37,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname
-    if (path !== '/incident-collaboration' && path !== '/incident-write' && path !== '/incident-assessment' && path !== '/incident-list') return super.fetch(request)
+    if (path !== '/incident-findings' && path !== '/incident-collaboration' && path !== '/incident-write' && path !== '/incident-assessment' && path !== '/incident-list') return super.fetch(request)
     if (request.method !== 'POST') return fail('Not found.', 404)
     try {
       const header = request.headers.get('Authorization') ?? ''
@@ -44,6 +45,8 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
       const { result: auth } = await verifyJwt({ publicKey: this.env.AUTH_JWT_PUBLIC_KEY, issuer: this.env.AUTH_JWT_ISSUER }, jwt)
       if (!auth || auth.userId.startsWith('anon-')) return fail('Sign in required.', 401)
       const payload = await request.json()
+      const findings = path === '/incident-findings' ? findingsReadRequest.safeParse(payload) : null
+      if(findings && !findings.success) return fail('Invalid findings request.')
       const list = path === '/incident-list' ? incidentListRequest.safeParse(payload) : null
       if (list && !list.success) return fail('Invalid incident list request.')
       const write = path === '/incident-write' ? incidentWriteRequest.safeParse(payload) : null
@@ -51,7 +54,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
       const assessment = path === '/incident-assessment' ? internalAssessmentRequest.safeParse(payload) : null
       if (assessment && !assessment.success) return fail('Invalid judgment request.')
       const parsed = collaborationRequest.safeParse(payload)
-      if (!write && !assessment && !list && !parsed.success) return fail('Invalid collaboration request.')
+      if (!findings && !write && !assessment && !list && !parsed.success) return fail('Invalid collaboration request.')
       // Initialize the SDK's schema tables before entering the local gate.
       await super.fetch(new Request('https://internal/api/initialize-collaboration'))
       this.sql.exec('CREATE INDEX IF NOT EXISTS incident_member_lookup ON c_incident_members (col_incidentid, col_incidentcreatedat, col_incidentowner, col_userid)')
@@ -62,6 +65,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
         const user = z.object({ data: z.object({ role: z.string() }) }).safeParse(account.data?.record)
         if (!account.success || !user.success) return fail('Sign in to this app before collaborating.', 403)
         const role = auth.userId === this.env.OWNER_USER_ID ? 'admin' : user.data.data.role
+        if (findings?.success) return readFindingsInRoom(findings.data, auth.userId, role, this.tool.bind(this), this.sql)
         if (list?.success) return listIncidentsInRoom(list.data, auth.userId, (id, tool, params) => this.tool(id, tool, params, false), this.sql)
         if (assessment?.success) return assessHypothesisInRoom(assessment.data, auth.userId, role, this.tool.bind(this), this.sql)
         if (write?.success) return writeIncident(write.data, auth.userId, role, this.tool.bind(this), (operation, key, content) => reserveIncidentWrite(this.sql, auth.userId, operation, key, content))

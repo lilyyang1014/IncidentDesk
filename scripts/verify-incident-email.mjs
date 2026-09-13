@@ -16,6 +16,7 @@ for (const user of ['owner', 'member-a', 'member-b']) {
 const persistence = await mkdtemp(join(tmpdir(), 'incident-email-runtime-'))
 let providerCalls = 0
 let reviewedBody
+let reviewedHtml
 const options = {
   modules: true, scriptPath: resolve('dist/incidentdesk/index.js'), cf: false,
   compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'],
@@ -38,6 +39,7 @@ const options = {
       assert.equal(body.to, 'recipient@example.test')
       assert.equal(body.subject, 'Reviewed incident report')
       assert.equal(body.content, reviewedBody)
+      assert.equal(body.html, reviewedHtml)
       assert(!body.content.includes('  request timed out  '))
       await new Promise((resolve) => setTimeout(resolve, 200))
       return Response.json({ success: true, data: { id: 'mock-gmail-message-id' } })
@@ -76,6 +78,8 @@ try {
   assert.equal(prepared.success, true, JSON.stringify(prepared))
   assert.equal(prepared.data.phase, 'ready')
   reviewedBody = prepared.data.draft.content
+  reviewedHtml = prepared.data.draft.html
+  assert.ok(reviewedHtml.includes('<h1'))
   const draftId = prepared.data.draft.id
   assert.equal(providerCalls, 0)
   assert.equal((await action('member-a', 'send', { draftId })).success, false)
@@ -92,6 +96,7 @@ try {
   assert.equal(restored.success, true, JSON.stringify(restored))
   assert.equal(restored.data.phase, 'accepted')
   assert.equal(restored.data.draft.content, reviewedBody)
+  assert.equal(restored.data.draft.html, reviewedHtml)
   assert.equal((await action('member-b', 'status')).success, false)
   assert.equal((await action('member-a', 'send', { draftId, confirmed: true })).data.phase, 'accepted')
   const duplicate = await action('member-a', 'prepare', params)
