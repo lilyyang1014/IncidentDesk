@@ -23,6 +23,7 @@ import Navigation from '../../components/Navigation'
 import { useToast } from '@/components/ui'
 import { SCOPE_ID } from '../../constants'
 import { schemas } from '../../schemas'
+import { InvitationResume } from '../../features/incidents/collaboration/InvitationResume'
 
 export default function AppLayout() {
   return (
@@ -70,6 +71,7 @@ function AuthBoot({ children }: { children: ReactNode }) {
       }
     >
       <RecordScope roomId={SCOPE_ID} schemas={schemas}>
+        <InvitationResume />
         {children}
       </RecordScope>
     </RecordProvider>

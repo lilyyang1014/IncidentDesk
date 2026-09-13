@@ -4,12 +4,12 @@ import { Button, Modal } from '@/components/ui'
 import type { Incident } from '../incident-types'
 import { collaboratorIds } from '../incident-permissions'
 import { MAX_COLLABORATORS } from './collaboration-types'
+import { IncidentInvitation } from './IncidentInvitation'
 import { changeCollaboration } from './collaboration-client'
 
 export function IncidentCollaborators({ record, canManage }: { record: RecordData<Incident>; canManage: boolean }) {
-  const { users = [], usersLoaded, getName } = useUserLookup()
+  const { getName } = useUserLookup()
   const { ready } = useMutations('incidents')
-  const [selected, setSelected] = useState('')
   const [removal, setRemoval] = useState<{ id: string; name: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -18,7 +18,6 @@ export function IncidentCollaborators({ record, canManage }: { record: RecordDat
   const controller = useRef<AbortController | null>(null)
   useEffect(() => () => controller.current?.abort(), [])
   const ids = collaboratorIds(record.data.collaborators)
-  const candidates = users.filter(user => user.id !== record.createdBy && !ids.includes(user.id) && !user.id.startsWith('anon-'))
   async function change(intent: 'add' | 'remove', userId: string) {
     if (!ready || gate.current || !canManage || (intent === 'remove' && !ids.includes(userId))) return
     gate.current = true
@@ -27,7 +26,7 @@ export function IncidentCollaborators({ record, canManage }: { record: RecordDat
     setBusy(true); setError(null); setMessage(null)
     try {
       await changeCollaboration({ incidentId: record.recordId, incidentCreatedAt: record.createdAt, intent, userId }, request.signal)
-      if (!request.signal.aborted) { setSelected(''); setRemoval(null); setMessage(intent === 'add' ? 'Collaborator added. Share this incident URL with them.' : 'Collaborator removed. Future access is blocked.') }
+      if (!request.signal.aborted) { setRemoval(null); setMessage(intent === 'add' ? 'Collaborator added. Share this incident URL with them.' : 'Collaborator removed. Future access is blocked.') }
     } catch (err) {
       if (!request.signal.aborted) setError(err instanceof Error ? err.message : 'Could not confirm the access change.')
     } finally { gate.current = false; if (!request.signal.aborted) setBusy(false) }
@@ -47,15 +46,7 @@ export function IncidentCollaborators({ record, canManage }: { record: RecordDat
       }}>Remove collaborator</Button>}
     </div>)}
     {!ids.length && <p className="text-sm text-muted-foreground">No collaborators added.</p>}
-    {canManage && ids.length < MAX_COLLABORATORS && <div className="flex flex-col gap-2">
-      <label htmlFor="incident-collaborator" className="text-sm">Add a registered user</label>
-      <select id="incident-collaborator" value={selected} disabled={!ready || busy || !usersLoaded} onChange={e => setSelected(e.target.value)} className="w-full rounded-md border border-border bg-background p-2 text-sm text-foreground">
-        <option value="">Select a person</option>
-        {candidates.map(user => <option key={user.id} value={user.id}>{user.name || 'Registered user'} ({user.id})</option>)}
-      </select>
-      <p className="text-xs text-muted-foreground">Ask them to sign in to IncidentDesk first. Verify their name and account ID before sharing logs. No invitation email is sent.</p>
-      <Button className="self-start" disabled={!ready || busy || !selected} onClick={() => void change('add', selected)}>Add collaborator</Button>
-    </div>}
+    {canManage && <IncidentInvitation key={`${record.recordId}:${record.createdAt}`} incidentId={record.recordId} incidentCreatedAt={record.createdAt} hasCollaborator={ids.length >= MAX_COLLABORATORS} />}
     {canManage && ids.length >= MAX_COLLABORATORS && <p className="text-xs text-muted-foreground">This version supports the creator and one collaborator.</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
