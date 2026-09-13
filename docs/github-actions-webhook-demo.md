@@ -1,13 +1,13 @@
 # GitHub Actions → IncidentDesk demo
 
-Status: implemented locally; not yet pushed, configured or run on GitHub.
+Status: published as `28150f2` and user-accepted against the production receiver on September 13, 2026. [Run 34774997901](https://github.com/lilyyang1014/IncidentDesk/actions/runs/34774997901) confirmed first-attempt HTTP 201 with `duplicate=false`; the user verified the matching event in IncidentDesk. The observed request took 451.76 ms, one network sample rather than a performance guarantee. Publishing the sender did not require redeploying the app.
 
 This manually dispatched workflow runs a deliberately failing fictional health
 check, then automatically sends an incident to the released webhook endpoint.
 It does not deploy the app or invoke AI, search or email. No app dependency
 installation is required: the sender and its tests use Python's standard library.
 
-## First run, after the workflow is published
+## Configure and run
 
 1. Open this repository on GitHub. Select **Settings → Secrets and variables →
    Actions → New repository secret**. Enter the name `INCIDENTDESK_WEBHOOK_TOKEN`.

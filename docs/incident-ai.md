@@ -11,7 +11,7 @@ Results contain a summary, exact log evidence, tentative hypotheses and suggeste
 ## Data flow
 
 1. The browser posts `{ incidentId, intent }` to `/api/actions/analyzeIncident` with its session token. It cannot choose the model, billing account or log text.
-2. A private `AppIncidentAiRoom` verifies the JWT and app membership, loads the record and requires its creator or an admin. This check runs for both status reads and generation, and is repeated before returning data after a slow call.
+2. A private `AppIncidentAiRoom` verifies the JWT and app membership and loads the record. Generation requires its creator or an admin; saved-status reads also allow a current collaborator. Access is checked again before returning data after a slow call.
 3. A SHA-256 identity includes the record ID, creation metadata, title and exact saved logs. A transactional receipt prevents overlapping calls for the same input across tabs/devices/accounts.
 4. The provider adapter uses the fixed configuration in `src/integrations.ts`, the caller JWT and app identity. OpenAI remains blocked in the generic browser proxy; the private business adapter is its only enabled application path.
 5. The server rejects incomplete/non-JSON output, invalid structures, fabricated quotes, duplicate evidence lines and hypotheses referring to uncited lines. Exact quote validation does not prove a hypothesis or summary is true; human review remains necessary.
@@ -33,10 +33,9 @@ The local `wrangler.toml` binding/migration and the worker's deployment manifest
 
 ## Verification
 
-Run with the supported Node runtime:
+Run from the project root with Node.js 24 and the locked dependencies installed:
 
 ```bash
-export PATH=/Users/yaofu/.local/share/incidentdesk-runtime/node_modules/.bin:$PATH
 npm run test:unit
 npm run type-check
 npm run lint
@@ -56,7 +55,7 @@ Before any real generation, explicitly authorize the paid test and use sanitized
 2. After paid-test authorization, generate one analysis for a fictional log containing a blank second line and `request timed out` on line 3. Confirm summary, **Log evidence**, **Possible causes — not confirmed** and **Suggested checks** appear; every displayed quote must match its saved line.
 3. Refresh the detail and reopen its URL. Confirm the same saved result appears without generation.
 4. During a generation, confirm the button is disabled. Use another tab to check status; it must not start another provider request for the same input.
-5. Under a different non-admin account, confirm the event remains inaccessible. Automated isolated tests already exercise the action path directly; no paid unauthorized call is needed.
+5. Under an uninvited non-admin account, confirm the event remains inaccessible. A current collaborator may read saved analysis but cannot generate it. Automated isolated tests already exercise the action path directly; no paid unauthorized call is needed.
 6. Insufficient credits, invalid response, timeout and storage failures are covered by simulations. Do not spend money or physically disrupt the user's live server merely to repeat those tests.
 
 The agent performed no commit, push, deployment, email or real paid API call as part of implementation or the documentation update. The user subsequently generated a report personally. The user subsequently authorized a consistency review, Git commit and push. Deployment and additional paid calls still require explicit authorization.

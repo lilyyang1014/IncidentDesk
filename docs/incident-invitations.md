@@ -1,6 +1,6 @@
 # Email-bound incident invitation links
 
-Status: implemented and user-accepted (manual steps 1–3). The user authorized commit, push and deployment on September 13, 2026. No invitation mail delivery is implemented or invoked.
+Status: deployed as release 10 on September 13, 2026. The user confirmed cross-device invitation acceptance and Discussion visibility in production. No invitation mail delivery is implemented or invoked. Automated revocation coverage is separate from that production acceptance.
 
 ## User flow
 

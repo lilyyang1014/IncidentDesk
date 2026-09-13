@@ -1,6 +1,6 @@
 # Bounded incident webhook intake
 
-Status: implemented and locally user-accepted. The user authorized commit, push and deployment on September 13, 2026; production load tests and paid integration calls remain outside scope. This is a generic sender contract, not native GitHub/Grafana payload compatibility. Performance evidence and reproducible commands are in [the measurement report](performance/webhook-performance.md).
+Status: deployed as release 11 on September 13, 2026. The [GitHub Actions demo](github-actions-webhook-demo.md) subsequently delivered a fictional event to production and passed user acceptance. This is a generic sender contract, not native GitHub/Grafana payload compatibility. Production load testing remains unperformed. Performance evidence and reproducible commands are in [the measurement report](performance/webhook-performance.md).
 
 ## Flow and ownership
 
