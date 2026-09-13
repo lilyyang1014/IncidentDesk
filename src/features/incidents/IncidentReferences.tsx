@@ -4,7 +4,7 @@ import { Button, Modal } from '@/components/ui'
 import { requestReferences } from './incident-reference-client'
 import { searchQuery, type ReferenceState, type ReferenceResult } from './incident-reference-types'
 
-export function IncidentReferences({ incidentId, readOnly = false }: { incidentId: string; readOnly?: boolean }) {
+export function IncidentReferences({ incidentId, readOnly = false, onResultCount }: { incidentId: string; readOnly?: boolean; onResultCount?: (count: number | null) => void }) {
   const { ready } = useMutations('incidents')
   const [query, setQuery] = useState('')
   const [pendingQuery, setPendingQuery] = useState<string | null>(null)
@@ -14,6 +14,7 @@ export function IncidentReferences({ incidentId, readOnly = false }: { incidentI
   const gate = useRef(false)
   const mounted = useRef(true)
   const version = useRef(0)
+  useEffect(() => { onResultCount?.(state?.result?.items.length ?? null) }, [state, onResultCount])
   useEffect(() => {
     mounted.current = true
     const current = ++version.current

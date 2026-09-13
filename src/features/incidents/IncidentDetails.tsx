@@ -9,7 +9,6 @@ import { creatorLabel } from './incident-access'
 import { IncidentDetailView } from './IncidentDetailView'
 import { IncidentAnalysisControl } from './IncidentAnalysisControl'
 import { IncidentAnalysisResult } from './IncidentAnalysisResult'
-import { IncidentReferences } from './IncidentReferences'
 import { IncidentEmail } from './IncidentEmail'
 import { GmailConnectionStatus } from './GmailConnectionStatus'
 import { IncidentHandoffPreview } from './IncidentHandoffPreview'
@@ -48,9 +47,9 @@ export function IncidentDetails({ incidentId, onBack }: { incidentId: string; on
         </>}
         collaborators={<IncidentCollaborators key={`members:${collaborationKey}`} record={selected} canManage={capability.manageMembers} />}
         discussion={<IncidentNotes key={`notes:${collaborationKey}`} record={selected} />}
-        analysis={<div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        references={{ incidentId: selected.recordId, readOnly: !capability.operate, sourceKey: `${collaborationKey}:${selected.data.title}:${selected.data.rawLog}` }}
+        analysis={<div className="w-full min-w-0">
           <div className="min-w-0"><IncidentAiAnalysis incidentCreatedAt={selected.createdAt} incidentOwner={selected.createdBy} readOnly={!capability.operate} key={`${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} /></div>
-          <div className="min-w-0"><IncidentReferences readOnly={!capability.operate} key={`references:${user?.id}:${selected.recordId}:${selected.data.title}:${selected.data.rawLog}`} incidentId={selected.recordId} /></div>
         </div>}
         handoff={capability.operate ? <>
           <GmailConnectionStatus key={`gmail:${user?.id}`} />
