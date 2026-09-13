@@ -1,3 +1,4 @@
+import { registerWebhookRoutes } from './src/server/webhook-routes'
 /**
  * App Worker — explicit assembly for DeepSpace app routes and Durable Objects.
  *
@@ -146,6 +147,7 @@ registerAuthAndIntegrationRoutes(app)
 registerRealtimeRoutes(app)
 registerActionRoutes(app, resolveAuth)
 registerInvitationRoutes(app)
+registerWebhookRoutes(app)
 // The in-app assistant stores chat history in `ai-chats` / `ai-messages`,
 // which only the copilot overlay declares. When present, registerAgent enables
 // both that website AI and the user's local Codex/Claude/etc. assistant.

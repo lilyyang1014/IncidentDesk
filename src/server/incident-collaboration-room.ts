@@ -1,3 +1,5 @@
+import { initializeWebhooks, manageWebhook, receiveWebhook } from './webhook-store'
+import { sourceRequest, webhookEvent } from '../features/incidents/webhooks/webhook-types'
 import { findingsReadRequest, readFindingsInRoom } from './incident-findings'
 import { reserveIncidentWrite } from './incident-write-limit'
 import { internalAssessmentRequest, assessHypothesisInRoom } from './incident-assessments'
@@ -40,7 +42,21 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname
-    if (path !== '/incident-invitations' && path !== '/incident-findings' && path !== '/incident-collaboration' && path !== '/incident-write' && path !== '/incident-assessment' && path !== '/incident-list') return super.fetch(request)
+    if (path === '/incident-webhook') {
+      if (request.method !== 'POST') return fail('Not found.',404)
+      try {
+        const token=(request.headers.get('Authorization')??'').replace(/^Bearer /,'')
+        if(!/^[a-f0-9-]{36}\.[a-f0-9]{64}$/.test(token)) return fail('Invalid webhook token.',401)
+        const parsed=webhookEvent.safeParse(await request.json())
+        if(!parsed.success) return fail('Invalid webhook payload.',400)
+        await super.fetch(new Request('https://internal/api/initialize-webhook'))
+        return await this.state.blockConcurrencyWhile(async()=>{
+          initializeWebhooks(this.sql)
+          return receiveWebhook(this.sql,fn=>this.state.storage.transactionSync(fn),token,parsed.data,this.tool.bind(this))
+        })
+      } catch { return fail('Could not confirm storage. Retry the same event.',503) }
+    }
+    if (path !== '/webhook-source' && path !== '/incident-invitations' && path !== '/incident-findings' && path !== '/incident-collaboration' && path !== '/incident-write' && path !== '/incident-assessment' && path !== '/incident-list') return super.fetch(request)
     if (request.method !== 'POST') return fail('Not found.', 404)
     try {
       const header = request.headers.get('Authorization') ?? ''
@@ -48,6 +64,8 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
       const { result: auth } = await verifyJwt({ publicKey: this.env.AUTH_JWT_PUBLIC_KEY, issuer: this.env.AUTH_JWT_ISSUER }, jwt)
       if (!auth || auth.userId.startsWith('anon-')) return fail('Sign in required.', 401)
       const payload = await request.json()
+      const webhookSource = path === '/webhook-source' ? sourceRequest.safeParse(payload) : null
+      if(webhookSource && !webhookSource.success) return fail('Invalid source request.')
       const invitation = path === '/incident-invitations' ? invitationRequest.safeParse(payload) : null
       if (invitation && !invitation.success) return fail('Invalid invitation request.')
       let recipientEmail: string | null = null
@@ -66,7 +84,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
       const assessment = path === '/incident-assessment' ? internalAssessmentRequest.safeParse(payload) : null
       if (assessment && !assessment.success) return fail('Invalid judgment request.')
       const parsed = collaborationRequest.safeParse(payload)
-      if (!invitation && !findings && !write && !assessment && !list && !parsed.success) return fail('Invalid collaboration request.')
+      if (!webhookSource && !invitation && !findings && !write && !assessment && !list && !parsed.success) return fail('Invalid collaboration request.')
       // Initialize the SDK's schema tables before entering the local gate.
       await super.fetch(new Request('https://internal/api/initialize-collaboration'))
       this.sql.exec('CREATE INDEX IF NOT EXISTS incident_member_lookup ON c_incident_members (col_incidentid, col_incidentcreatedat, col_incidentowner, col_userid)')
@@ -77,6 +95,11 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
         const user = z.object({ data: z.object({ role: z.string() }) }).safeParse(account.data?.record)
         if (!account.success || !user.success) return fail('Sign in to this app before collaborating.', 403)
         const role = auth.userId === this.env.OWNER_USER_ID ? 'admin' : user.data.data.role
+        if (webhookSource?.success) {
+          initializeWebhooks(this.sql)
+          if(!['viewer','member','admin'].includes(role)) return fail('Your account cannot manage a webhook source.',403)
+          return manageWebhook(this.sql,auth.userId,webhookSource.data)
+        }
         if (invitation?.success) return handleInvitation(invitation.data, auth, recipientEmail, this.tool.bind(this), this.sql, () => this.refreshAccess())
         if (findings?.success) return readFindingsInRoom(findings.data, auth.userId, role, this.tool.bind(this), this.sql)
         if (list?.success) return listIncidentsInRoom(list.data, auth.userId, (id, tool, params) => this.tool(id, tool, params, false), this.sql)

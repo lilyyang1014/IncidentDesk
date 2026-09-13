@@ -4,6 +4,7 @@
  */
 
 import { signOut, useUser } from 'deepspace'
+import { WebhookSource } from '@/features/incidents/webhooks/WebhookSource'
 import { Button } from '@/components/ui'
 
 export default function SettingsPage() {
@@ -35,6 +36,7 @@ export default function SettingsPage() {
             Sign out
           </Button>
         </section>
+        <WebhookSource key={user?.id ?? "signed-out"} />
       </div>
     </div>
   )
