@@ -11,6 +11,9 @@ export const INITIAL_SAVE_STATE: SaveState = { phase: 'idle', error: null }
 // The installed SDK 0.33.1 uses plain Error messages for these transport
 // failures, rather than typed error codes. Neither proves the write failed.
 function saveFailure(error: unknown): SaveState {
+  if (error instanceof Error && 'code' in error && error.code === 'rate_limited') {
+    return { phase: 'idle', error: `${error.message} Your input is unchanged.` }
+  }
   if (error instanceof Error && 'code' in error && error.code === 'not_ready') {
     return { phase: 'idle', error: 'Not connected. Your input is unchanged. Reconnect before saving.' }
   }

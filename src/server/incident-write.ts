@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { incidentSource, type IncidentWriteRequest } from '../features/incidents/incident-write-types'
 import { incidentCapabilities } from '../features/incidents/incident-permissions'
 
+import type { AdmitWrite } from './incident-write-limit'
+
 type Tool = (userId: string, tool: string, params: Record<string, unknown>) => Promise<ActionResult<Record<string, unknown>>>
 const fail = (error: string, status = 400) => Response.json({ success: false, error }, { status })
 const recordSchema = z.object({ recordId: z.string(), createdBy: z.string(), createdAt: z.string(), data: z.object({ title: z.string(), rawLog: z.string() }) })
@@ -10,7 +12,7 @@ const recordSchema = z.object({ recordId: z.string(), createdBy: z.string(), cre
 /** Called only inside the RecordRoom gate after verified app membership.
  * SDK trusted writes keep normal persistence, attribution and live broadcasts.
  */
-export async function writeIncident(input: IncidentWriteRequest, userId: string, role: string, tool: Tool): Promise<Response> {
+export async function writeIncident(input: IncidentWriteRequest, userId: string, role: string, tool: Tool, admit: AdmitWrite): Promise<Response> {
   const recordId = input.intent === 'create' ? `incident:${userId}:${input.requestId}` : input.incidentId
   const found = await tool(userId, 'records.get', { collection: 'incidents', recordId })
   if (!found.success && found.error !== RECORD_NOT_FOUND) return fail('Could not check the saved incident. Try again later.', 503)
@@ -31,6 +33,10 @@ export async function writeIncident(input: IncidentWriteRequest, userId: string,
     if (merged.data.title !== parsed.data.data.title || merged.data.rawLog !== parsed.data.data.rawLog) {
       data = { ...input.data, status: 'Pending analysis', analysisSummary: '', analysisSignals: '', analysisEvidence: '' }
     }
+  }
+  if (input.intent === 'create') {
+    const refusal = await admit('create', recordId, input.data)
+    if (refusal) return refusal
   }
   const result = await tool(userId, input.intent === 'create' ? 'records.create' : 'records.update', {
     collection: 'incidents', recordId, data: input.intent === 'create' ? { ...input.data, status: 'Pending analysis' } : data,

@@ -32,3 +32,12 @@ it('blocks oversized form submission before trimming or sending any write', asyn
   expect(save).not.toHaveBeenCalled()
   expect(changed).toHaveBeenLastCalledWith({phase:'idle',error:'Original logs exceed the 20,000-character limit. Shorten them before saving.'})
 })
+
+it('shows a definite rate refusal without entering uncertain-save review', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({success:false,code:'rate_limited',retryAfterSeconds:12,error:'Too many requests. Try again in 12 seconds.'},{status:429})))
+  const changed=vi.fn()
+  const flow=createIncidentSaveFlow(changed)
+  await flow.submit({title:'Keep this title',rawLog:'Keep these logs'},createIncidentConfirmed)
+  expect(changed).toHaveBeenLastCalledWith({phase:'idle',error:'Too many requests. Try again in 12 seconds. Your input is unchanged.'})
+  expect(flow.canReplaceInput()).toBe(true)
+})

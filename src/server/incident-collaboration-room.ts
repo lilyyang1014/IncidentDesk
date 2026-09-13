@@ -1,9 +1,10 @@
+import { reserveIncidentWrite } from './incident-write-limit'
 import { internalAssessmentRequest, assessHypothesisInRoom } from './incident-assessments'
 import { incidentWriteRequest } from '../features/incidents/incident-write-types'
 import { writeIncident } from './incident-write'
 import { incidentListRequest } from '../features/incidents/incident-list-types'
 import { listIncidentsInRoom } from './incident-list'
-import { MSG, RecordRoom, verifyJwt, type ActionResult } from 'deepspace/worker'
+import { MSG, RECORD_NOT_FOUND, RecordRoom, verifyJwt, type ActionResult } from 'deepspace/worker'
 import { z } from 'zod'
 import type { Env } from '../../worker'
 import { schemas } from '../schemas'
@@ -63,7 +64,7 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
         const role = auth.userId === this.env.OWNER_USER_ID ? 'admin' : user.data.data.role
         if (list?.success) return listIncidentsInRoom(list.data, auth.userId, (id, tool, params) => this.tool(id, tool, params, false), this.sql)
         if (assessment?.success) return assessHypothesisInRoom(assessment.data, auth.userId, role, this.tool.bind(this), this.sql)
-        if (write?.success) return writeIncident(write.data, auth.userId, role, this.tool.bind(this))
+        if (write?.success) return writeIncident(write.data, auth.userId, role, this.tool.bind(this), (operation, key, content) => reserveIncidentWrite(this.sql, auth.userId, operation, key, content))
         if (!parsed.success) return fail('Invalid collaboration request.')
         const input = parsed.data
         const found = await this.tool(auth.userId, 'records.get', { collection: 'incidents', recordId: input.incidentId })
@@ -100,6 +101,9 @@ export class IncidentCollaborationRecordRoom extends RecordRoom<Env> {
             if (saved.createdBy !== auth.userId || saved.data.body !== input.body) return fail('This request already saved different note content. Reopen the incident before adding a new note.')
             return Response.json({ success: true, data: { recordId: noteId } })
           }
+          if (!previous.success && previous.error !== RECORD_NOT_FOUND) return fail('Could not confirm existing notes. Try again later.', 503)
+          const refusal = await reserveIncidentWrite(this.sql, auth.userId, 'note', noteId, input.body)
+          if (refusal) return refusal
           const latest = await this.tool(auth.userId, 'records.query', { collection: 'incident_notes', where: source, orderBy: 'sequence', orderDir: 'desc', limit: 1 })
           if (!latest.success) return fail('Could not confirm existing notes. Try again later.', 503)
           const rows = z.array(z.object({ data: z.object({ sequence: z.number() }) })).parse(latest.data?.records)

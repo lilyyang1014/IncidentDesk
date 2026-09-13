@@ -58,7 +58,13 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
     const params = await c.req.json<Record<string, unknown>>()
     const tools = createActionTools(c.env, auth.userId, callerJwt)
     const result = await action({ userId: auth.userId, params, tools, env: c.env, callerJwt })
-    return c.json(result as unknown as Record<string, unknown>)
+    // These two guarded actions return a structured admission refusal.
+    const body = result as unknown as Record<string, unknown>
+    if (['saveIncident', 'incidentCollaboration'].includes(name) && !result.success && body.code === 'rate_limited' && typeof body.retryAfterSeconds === 'number' && Number.isInteger(body.retryAfterSeconds) && body.retryAfterSeconds > 0 && body.retryAfterSeconds <= 60) {
+      c.header('Retry-After', String(body.retryAfterSeconds))
+      return c.json(body, 429)
+    }
+    return c.json(body)
   })
 }
 
