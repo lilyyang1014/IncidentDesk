@@ -1,0 +1,43 @@
+name: IncidentDesk webhook demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incidentdesk-webhook-demo
+  cancel-in-progress: false
+
+jobs:
+  fictional-failure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify sender without network calls
+        run: python3 -B -m unittest discover -s scripts -p 'test_webhook_demo.py' -v
+      - name: Run fictional health check (expected failure)
+        id: demo
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import unittest
+          class FictionalHealthCheck(unittest.TestCase):
+              def test_fictional_service_returns_ok(self):
+                  self.assertEqual(503, 200, "Fictional service unavailable; intentional demo failure")
+          unittest.main()
+          PY
+      - name: Send fictional incident
+        if: ${{ steps.demo.outcome == 'failure' }}
+        env:
+          INCIDENTDESK_WEBHOOK_TOKEN: ${{ secrets.INCIDENTDESK_WEBHOOK_TOKEN }}
+        run: python3 -B scripts/webhook_demo.py
+      - name: Preserve the expected failed test result
+        if: ${{ success() && steps.demo.outcome == 'failure' }}
+        run: |
+          echo 'Notification delivered. This run is intentionally red because the fictional test failed.' >> "$GITHUB_STEP_SUMMARY"
+          exit 1
