@@ -31,6 +31,15 @@ it('sends the exact saved HTML alongside the plain-text fallback', async () => {
   await sendGmail(env, 'caller-token', saved)
   expect(JSON.parse(api.mock.calls[0][2].body)).toEqual({ to: saved.to, subject: saved.subject, content: saved.content, html: saved.html })
 })
+it('encodes Unicode only at the provider boundary without changing the stored draft', async () => {
+  api.mockResolvedValue(Response.json({ success: true, data: { id: 'gmail-message' } }))
+  const saved = { ...draft, subject: '—', html: '<p>Reviewed body</p>' }
+  const before = structuredClone(saved)
+  await sendGmail(env, 'caller-token', saved)
+  expect(JSON.parse(api.mock.calls[0][2].body)).toEqual({ to: saved.to, subject: '=?UTF-8?B?4oCU?=', content: saved.content, html: saved.html })
+  expect(saved).toEqual(before)
+  expect(api).toHaveBeenCalledOnce()
+})
 it('escapes report inputs and keeps unsafe reference URLs inert in formatted emails', () => {
   const html = formatEmailHtml({ recordId: 'event', createdAt: 'now', data: { title: '<img src=x onerror=alert(1)>', rawLog: '<script>bad()</script>' } }, undefined, { query: 'test', searchedAt: 'now', items: [{ title: '<b>Source</b>', url: 'javascript:alert(1)', excerpt: '<iframe src="https://example.test">' }] }, true)
   expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
@@ -43,6 +52,14 @@ it('returns OAuth as a separate state without automatically retrying', async () 
   api.mockResolvedValue(Response.json({ success: true, data: { requiresOAuth: true, provider: 'google', authUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=test' } }))
   expect(await sendGmail(env, 'caller', draft)).toMatchObject({ phase: 'oauth' })
   expect(api).toHaveBeenCalledTimes(1)
+})
+it.each([400, 401, 403, 429])('retains actionable rejection status %s without retrying', async status => {
+  api.mockResolvedValue(new Response('Untrusted provider details', { status }))
+  const result = await sendGmail(env, 'caller', { ...draft, subject: 'Incident handoff: Unicode check — 中文 café ✅' })
+  expect(result).toMatchObject({ phase: 'failed', error: expect.stringContaining(`HTTP ${status}`) })
+  expect(JSON.parse(api.mock.calls[0][2].body).subject).not.toMatch(/[\r\n]/)
+  expect(result).not.toHaveProperty('error', expect.stringContaining('Untrusted provider details'))
+  expect(api).toHaveBeenCalledOnce()
 })
 it.each(['https://evil.test/auth', 'javascript:alert(1)', 'https://accounts.google.com.evil.test'])('blocks untrusted authorization URL %s', async (authUrl) => {
   api.mockResolvedValue(Response.json({ success: true, data: { requiresOAuth: true, provider: 'google', authUrl } }))
