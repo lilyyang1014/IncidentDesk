@@ -8,6 +8,8 @@ Open **Analysis → References** in the incident detail to view the resizable si
 
 At most five results are requested, with plain-text extraction limited to 1,500 characters per page. The app displays a title, source hostname, external link and excerpt when available. Results are reference material for human review, not verified fixes. Provider-generated summaries, additional OpenAI calls and automatic searches are not part of this feature.
 
+Exa can return empty titles on otherwise valid results. These display the validated URL's hostname instead. Unsafe URLs and malformed response structures still fail validation. This does not reset previously stored unknown outcomes or automatically repeat a search.
+
 ## Server flow and recovery
 
 `findIncidentReferences` forwards the authenticated request to a separate private SQLite-backed `AppIncidentReferenceRoom`. The room verifies identity and membership, permits saved reads for current collaborators, requires creator/admin access for searches, reads the saved incident and checks access and unchanged input again before responding. Saved title/log bounds match the AI action (120/20,000 characters).

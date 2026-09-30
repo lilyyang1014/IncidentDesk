@@ -12,9 +12,15 @@ export function parseReferences(data: unknown, query: string): ReferenceResult {
   const parsed = z.object({ results: z.array(z.object({
     title: z.string(), url: z.string(), text: z.string().nullable().optional(),
   })).max(5) }).parse(data)
-  const items = parsed.results.map((item) => referenceSchema.parse({
-    title: item.title, url: item.url, excerpt: (item.text ?? '').slice(0, 1500),
-  }))
+  const items = parsed.results.map((item) => {
+    // Exa permits an empty title. Validate the URL before using its hostname
+    // as a display fallback; missing metadata must not discard valid results.
+    const url = referenceSchema.shape.url.parse(item.url)
+    return referenceSchema.parse({
+      title: item.title.trim() || new URL(url).hostname,
+      url, excerpt: (item.text ?? '').slice(0, 1500),
+    })
+  })
   return { query, searchedAt: new Date().toISOString(), items: items.filter((item, index) => items.findIndex((other) => other.url === item.url) === index) }
 }
 

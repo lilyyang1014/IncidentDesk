@@ -13,6 +13,21 @@ describe('Exa result validation and billing boundary', () => {
     expect(result.items).toHaveLength(1)
     expect(result.items[0].excerpt).toHaveLength(1500)
   })
+  it('keeps valid search results when Exa returns empty or whitespace-only titles', () => {
+    const result = parseReferences({ results: [
+      { title: 'Troubleshooting', url: 'https://example.test/guide', text: 'Guide excerpt' },
+      { title: '', url: 'https://docs.example.test/timeouts', text: 'Timeout excerpt' },
+      { title: '   ', url: 'https://support.example.test/retries' },
+    ] }, 'timeout')
+    expect(result.items).toEqual([
+      { title: 'Troubleshooting', url: 'https://example.test/guide', excerpt: 'Guide excerpt' },
+      { title: 'docs.example.test', url: 'https://docs.example.test/timeouts', excerpt: 'Timeout excerpt' },
+      { title: 'support.example.test', url: 'https://support.example.test/retries', excerpt: '' },
+    ])
+  })
+  it.each(['javascript:alert(1)', 'https://user:password@example.test'])('still rejects unsafe URLs with an empty title: %s', url => {
+    expect(() => parseReferences({ results: [{ title: '', url }] }, 'timeout')).toThrow()
+  })
   it.each(['javascript:alert(1)', 'data:text/html,test', 'https://user:password@example.test'])('rejects unsafe source %s', (url) => {
     expect(() => parseReferences({ results: [{ title: 'Docs', url }] }, 'timeout')).toThrow()
   })
